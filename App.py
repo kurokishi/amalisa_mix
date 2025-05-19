@@ -111,7 +111,7 @@ st.title("Aplikasi Analisis Saham ala Lo Kheng Hong + BlackRock-style Risk Tools
 
 uploaded_file = st.file_uploader("Upload file CSV portofolio Anda", type=["csv"])
 
-ticker_input = st.text_input("Atau masukkan kode saham (Contoh: UNVR.JK)")
+ticker_input = st.text_input("Atau masukkan kode saham (pisahkan dengan koma, contoh: UNVR.JK,TLKM.JK)")
 
 if uploaded_file:
     df_portfolio = pd.read_csv(uploaded_file)
@@ -144,33 +144,39 @@ if uploaded_file:
     st.dataframe(korelasi)
 
 elif ticker_input:
-    try:
-        data = get_stock_data(ticker_input)
-        data['Harga Wajar (Graham)'] = graham_number(data['EPS'], data['Book Value'])
-        data['Rekomendasi'] = rekomendasi_beli(data['Harga Saat Ini'], data['Harga Wajar (Graham)'])
-        data['Proyeksi 5 Tahun (Dividen Compound)'] = simulasi_dividen_compound(data['Dividen Yield'], 5)
-        data['Analisis Risiko (Beta)'] = analisis_risiko(data['Beta'])
-        data['VaR (95%)'] = hitung_var(ticker_input)
+    ticker_list = [t.strip() for t in ticker_input.split(',') if t.strip() != '']
+    results = []
 
-        df = pd.DataFrame([data])
+    for ticker in ticker_list:
+        try:
+            data = get_stock_data(ticker)
+            data['Harga Wajar (Graham)'] = graham_number(data['EPS'], data['Book Value'])
+            data['Rekomendasi'] = rekomendasi_beli(data['Harga Saat Ini'], data['Harga Wajar (Graham)'])
+            data['Proyeksi 5 Tahun (Dividen Compound)'] = simulasi_dividen_compound(data['Dividen Yield'], 5)
+            data['Analisis Risiko (Beta)'] = analisis_risiko(data['Beta'])
+            data['VaR (95%)'] = hitung_var(ticker)
+            results.append(data)
+        except Exception as e:
+            st.warning(f"Gagal mengambil data untuk {ticker}: {e}")
+
+    if results:
+        df = pd.DataFrame(results)
         st.write("Hasil Analisis Saham:")
         st.dataframe(df)
 
-        st.subheader("Grafik Harga 1 Tahun Terakhir")
-        tampilkan_grafik(ticker_input)
+        undervalued = df[df['Rekomendasi'].str.contains("BELI")]
+        if not undervalued.empty:
+            st.subheader("Saham yang Direkomendasikan untuk Dibeli (Undervalued):")
+            st.dataframe(undervalued)
 
-        st.subheader("Simulasi Average Down")
-        harga_awal = st.number_input("Harga Beli Awal", value=float(data['Harga Saat Ini']))
-        jumlah_awal = st.number_input("Jumlah Lot Awal", value=1)
-        harga_baru = st.number_input("Harga Beli Tambahan", value=float(data['Harga Saat Ini']))
-        jumlah_baru = st.number_input("Jumlah Lot Tambahan", value=1)
-        if st.button("Hitung Harga Rata-rata"):
-            avg = simulasi_avg_down(harga_awal, jumlah_awal * 100, harga_baru, jumlah_baru * 100)
-            st.success(f"Harga Rata-rata setelah Average Down: Rp{avg:,.2f}")
+        st.subheader("📊 Korelasi Antar Saham (Diversifikasi Risiko)")
+        korelasi = diversifikasi_risiko(ticker_list)
+        st.dataframe(korelasi)
 
-    except Exception as e:
-        st.error(f"Gagal mengambil data: {e}")
+        st.subheader("Grafik Harga Saham")
+        for ticker in ticker_list:
+            st.markdown(f"### {ticker}")
+            tampilkan_grafik(ticker)
 
 else:
-    st.info("Silakan upload CSV atau masukkan kode saham untuk memulai analisis.")
-    
+    st.info("Silakan upload CSV atau masukkan satu atau lebih kode saham untuk memulai analisis.")
