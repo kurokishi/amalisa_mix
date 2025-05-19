@@ -2,12 +2,14 @@ import streamlit as st
 import pandas as pd
 import yfinance as yf
 import matplotlib.pyplot as plt
+import numpy as np
 from datetime import datetime, timedelta
 
 # Fungsi untuk mengambil data saham dari yfinance
 def get_stock_data(ticker):
     stock = yf.Ticker(ticker)
     info = stock.info
+    beta = info.get("beta")
     return {
         "Ticker": ticker,
         "Nama Perusahaan": info.get("shortName"),
@@ -19,7 +21,8 @@ def get_stock_data(ticker):
         "EPS": info.get("trailingEps"),
         "Book Value": info.get("bookValue"),
         "Debt to Equity": info.get("debtToEquity"),
-        "Market Cap": info.get("marketCap")
+        "Market Cap": info.get("marketCap"),
+        "Beta": beta
     }
 
 # Fungsi untuk menghitung harga wajar menggunakan Graham Number
@@ -67,7 +70,44 @@ def tampilkan_grafik(ticker):
     plt.legend()
     st.pyplot(plt)
 
-st.title("Aplikasi Analisis Saham ala Lo Kheng Hong")
+# Analisis risiko sederhana (BlackRock-style) menggunakan beta
+
+def analisis_risiko(beta):
+    if beta is None:
+        return "Data beta tidak tersedia"
+    if beta < 0.8:
+        return "Risiko rendah"
+    elif beta <= 1.2:
+        return "Risiko sedang"
+    else:
+        return "Risiko tinggi"
+
+# Value at Risk (VaR) dengan pendekatan historis sederhana
+def hitung_var(ticker, confidence_level=0.95):
+    try:
+        stock = yf.Ticker(ticker)
+        data = stock.history(period="1y")['Close']
+        returns = np.log(data / data.shift(1)).dropna()
+        var = np.percentile(returns, (1 - confidence_level) * 100)
+        return round(var * 100, 2)
+    except:
+        return None
+
+# Diversifikasi risiko sederhana berdasarkan korelasi
+
+def diversifikasi_risiko(tickers):
+    harga = pd.DataFrame()
+    for t in tickers:
+        try:
+            data = yf.Ticker(t).history(period="6mo")['Close']
+            harga[t] = data
+        except:
+            continue
+    returns = harga.pct_change().dropna()
+    korelasi = returns.corr()
+    return korelasi
+
+st.title("Aplikasi Analisis Saham ala Lo Kheng Hong + BlackRock-style Risk Tools")
 
 uploaded_file = st.file_uploader("Upload file CSV portofolio Anda", type=["csv"])
 
@@ -77,17 +117,21 @@ if uploaded_file:
     df_portfolio = pd.read_csv(uploaded_file)
     st.write("Portofolio Anda:", df_portfolio)
     results = []
-    for ticker in df_portfolio['Ticker']:
+    tickers = df_portfolio['Ticker'].tolist()
+
+    for ticker in tickers:
         data = get_stock_data(ticker)
         data['Harga Wajar (Graham)'] = graham_number(data['EPS'], data['Book Value'])
         data['Rekomendasi'] = rekomendasi_beli(data['Harga Saat Ini'], data['Harga Wajar (Graham)'])
         data['Proyeksi 5 Tahun (Dividen Compound)'] = simulasi_dividen_compound(data['Dividen Yield'], 5)
+        data['Analisis Risiko (Beta)'] = analisis_risiko(data['Beta'])
+        data['VaR (95%)'] = hitung_var(ticker)
         results.append(data)
+
     df_results = pd.DataFrame(results)
-    st.write("\nAnalisis Fundamental:")
+    st.write("\nAnalisis Fundamental dan Risiko:")
     st.dataframe(df_results)
 
-    # Filter saham undervalued
     undervalued = df_results[df_results['Rekomendasi'].str.contains("BELI")]
     if not undervalued.empty:
         st.subheader("Saham yang Direkomendasikan untuk Dibeli (Undervalued):")
@@ -95,21 +139,26 @@ if uploaded_file:
     else:
         st.info("Tidak ada saham yang direkomendasikan beli saat ini.")
 
+    st.subheader("📊 Korelasi Antar Saham (Diversifikasi Risiko)")
+    korelasi = diversifikasi_risiko(tickers)
+    st.dataframe(korelasi)
+
 elif ticker_input:
     try:
         data = get_stock_data(ticker_input)
         data['Harga Wajar (Graham)'] = graham_number(data['EPS'], data['Book Value'])
         data['Rekomendasi'] = rekomendasi_beli(data['Harga Saat Ini'], data['Harga Wajar (Graham)'])
         data['Proyeksi 5 Tahun (Dividen Compound)'] = simulasi_dividen_compound(data['Dividen Yield'], 5)
+        data['Analisis Risiko (Beta)'] = analisis_risiko(data['Beta'])
+        data['VaR (95%)'] = hitung_var(ticker_input)
+
         df = pd.DataFrame([data])
         st.write("Hasil Analisis Saham:")
         st.dataframe(df)
 
-        # Grafik harga historis
         st.subheader("Grafik Harga 1 Tahun Terakhir")
         tampilkan_grafik(ticker_input)
 
-        # Simulasi average down
         st.subheader("Simulasi Average Down")
         harga_awal = st.number_input("Harga Beli Awal", value=float(data['Harga Saat Ini']))
         jumlah_awal = st.number_input("Jumlah Lot Awal", value=1)
@@ -124,4 +173,4 @@ elif ticker_input:
 
 else:
     st.info("Silakan upload CSV atau masukkan kode saham untuk memulai analisis.")
-  
+    
