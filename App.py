@@ -5,25 +5,32 @@ import matplotlib.pyplot as plt
 import numpy as np
 from datetime import datetime, timedelta
 
-# Fungsi untuk mengambil data saham dari yfinance
+# Fungsi untuk mengambil data saham dari yfinance dengan error handling
 def get_stock_data(ticker):
-    stock = yf.Ticker(ticker)
-    info = stock.info
-    beta = info.get("beta")
-    return {
-        "Ticker": ticker,
-        "Nama Perusahaan": info.get("shortName"),
-        "Harga Saat Ini": info.get("currentPrice"),
-        "PER": info.get("trailingPE"),
-        "PBV": info.get("priceToBook"),
-        "ROE": info.get("returnOnEquity"),
-        "Dividen Yield": info.get("dividendYield"),
-        "EPS": info.get("trailingEps"),
-        "Book Value": info.get("bookValue"),
-        "Debt to Equity": info.get("debtToEquity"),
-        "Market Cap": info.get("marketCap"),
-        "Beta": beta
-    }
+    try:
+        stock = yf.Ticker(ticker)
+        info = stock.info
+
+        if not info or 'currentPrice' not in info:
+            raise ValueError("Data tidak tersedia untuk ticker ini.")
+
+        beta = info.get("beta")
+        return {
+            "Ticker": ticker,
+            "Nama Perusahaan": info.get("shortName"),
+            "Harga Saat Ini": info.get("currentPrice"),
+            "PER": info.get("trailingPE"),
+            "PBV": info.get("priceToBook"),
+            "ROE": info.get("returnOnEquity"),
+            "Dividen Yield": info.get("dividendYield"),
+            "EPS": info.get("trailingEps"),
+            "Book Value": info.get("bookValue"),
+            "Debt to Equity": info.get("debtToEquity"),
+            "Market Cap": info.get("marketCap"),
+            "Beta": beta
+        }
+    except Exception as e:
+        raise ValueError(f"Gagal mengambil data untuk {ticker}: {e}")
 
 # Fungsi untuk menghitung harga wajar menggunakan Graham Number
 def graham_number(eps, book_value):
@@ -58,20 +65,22 @@ def simulasi_avg_down(harga_beli_awal, jumlah_awal, harga_beli_baru, jumlah_baru
 
 # Fungsi grafik historis
 def tampilkan_grafik(ticker):
-    stock = yf.Ticker(ticker)
-    end = datetime.now()
-    start = end - timedelta(days=365)
-    hist = stock.history(start=start, end=end)
-    plt.figure(figsize=(10, 4))
-    plt.plot(hist['Close'], label='Harga Penutupan')
-    plt.title(f'Tren Harga Saham {ticker} (1 Tahun Terakhir)')
-    plt.xlabel('Tanggal')
-    plt.ylabel('Harga')
-    plt.legend()
-    st.pyplot(plt)
+    try:
+        stock = yf.Ticker(ticker)
+        end = datetime.now()
+        start = end - timedelta(days=365)
+        hist = stock.history(start=start, end=end)
+        plt.figure(figsize=(10, 4))
+        plt.plot(hist['Close'], label='Harga Penutupan')
+        plt.title(f'Tren Harga Saham {ticker} (1 Tahun Terakhir)')
+        plt.xlabel('Tanggal')
+        plt.ylabel('Harga')
+        plt.legend()
+        st.pyplot(plt)
+    except Exception as e:
+        st.warning(f"Gagal menampilkan grafik untuk {ticker}: {e}")
 
 # Analisis risiko sederhana (BlackRock-style) menggunakan beta
-
 def analisis_risiko(beta):
     if beta is None:
         return "Data beta tidak tersedia"
@@ -94,7 +103,6 @@ def hitung_var(ticker, confidence_level=0.95):
         return None
 
 # Diversifikasi risiko sederhana berdasarkan korelasi
-
 def diversifikasi_risiko(tickers):
     harga = pd.DataFrame()
     for t in tickers:
@@ -120,13 +128,16 @@ if uploaded_file:
     tickers = df_portfolio['Ticker'].tolist()
 
     for ticker in tickers:
-        data = get_stock_data(ticker)
-        data['Harga Wajar (Graham)'] = graham_number(data['EPS'], data['Book Value'])
-        data['Rekomendasi'] = rekomendasi_beli(data['Harga Saat Ini'], data['Harga Wajar (Graham)'])
-        data['Proyeksi 5 Tahun (Dividen Compound)'] = simulasi_dividen_compound(data['Dividen Yield'], 5)
-        data['Analisis Risiko (Beta)'] = analisis_risiko(data['Beta'])
-        data['VaR (95%)'] = hitung_var(ticker)
-        results.append(data)
+        try:
+            data = get_stock_data(ticker)
+            data['Harga Wajar (Graham)'] = graham_number(data['EPS'], data['Book Value'])
+            data['Rekomendasi'] = rekomendasi_beli(data['Harga Saat Ini'], data['Harga Wajar (Graham)'])
+            data['Proyeksi 5 Tahun (Dividen Compound)'] = simulasi_dividen_compound(data['Dividen Yield'], 5)
+            data['Analisis Risiko (Beta)'] = analisis_risiko(data['Beta'])
+            data['VaR (95%)'] = hitung_var(ticker)
+            results.append(data)
+        except Exception as e:
+            st.warning(str(e))
 
     df_results = pd.DataFrame(results)
     st.write("\nAnalisis Fundamental dan Risiko:")
@@ -157,7 +168,7 @@ elif ticker_input:
             data['VaR (95%)'] = hitung_var(ticker)
             results.append(data)
         except Exception as e:
-            st.warning(f"Gagal mengambil data untuk {ticker}: {e}")
+            st.warning(str(e))
 
     if results:
         df = pd.DataFrame(results)
@@ -180,3 +191,4 @@ elif ticker_input:
 
 else:
     st.info("Silakan upload CSV atau masukkan satu atau lebih kode saham untuk memulai analisis.")
+    
