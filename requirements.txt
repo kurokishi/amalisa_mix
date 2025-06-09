@@ -2,3 +2,9 @@ streamlit
 yfinance
 pandas
 matplotlib
+scikit-learn
+plotly
+seaborn
+numpy
+statsmodels
+tensorflow
