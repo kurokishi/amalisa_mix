@@ -5,6 +5,7 @@ matplotlib
 scikit-learn
 plotly
 seaborn
+pdfplumber
 numpy
 statsmodels
 tensorflow==2.13.0
