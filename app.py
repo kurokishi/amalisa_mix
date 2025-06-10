@@ -7,7 +7,6 @@ from modules.analyzer_teknikal import fetch_history, predict_prophet, predict_ar
 import plotly.graph_objects as go
 
 st.set_page_config(page_title="Stock Analyzer", layout="wide")
-
 st.title("📊 Stock Analyzer - Portofolio Ajaib")
 
 # Navigasi
@@ -30,7 +29,6 @@ if menu == "📁 Upload Portofolio PDF":
 
 elif menu == "📈 Analisa Fundamental":
     st.subheader("Analisa Fundamental Saham")
-
     try:
         df = pd.read_csv("data/portfolio.csv")
         for kode in df['Kode Saham']:
@@ -40,12 +38,11 @@ elif menu == "📈 Analisa Fundamental":
                     st.write(pd.DataFrame(hasil, index=[0]).T.rename(columns={0: 'Nilai'}))
                 else:
                     st.warning(f"❌ Gagal mengambil data untuk {kode}")
-      except FileNotFoundError:
+    except FileNotFoundError:
         st.warning("⚠️ File CSV belum tersedia. Upload dulu PDF portofolio.")
 
-    elif menu == "📊 Prediksi Harga Saham":
+elif menu == "📊 Prediksi Harga Saham":
     st.subheader("Prediksi Harga Saham dengan Prophet & ARIMA")
-
     try:
         df = pd.read_csv("data/portfolio.csv")
         pilihan = st.selectbox("Pilih saham", df['Kode Saham'].unique())
@@ -60,7 +57,5 @@ elif menu == "📈 Analisa Fundamental":
             st.markdown("### 🔮 Prediksi Harga (ARIMA - 30 hari)")
             arima_result = predict_arima(data_hist)
             st.line_chart(arima_result.set_index("ds")["yhat"])
-    except:
-        st.warning("⚠️ Gagal memuat data harga. Pastikan nama saham valid dan internet aktif.")
-
-    
+    except Exception as e:
+        st.warning(f"⚠️ Gagal memuat data harga: {e}")
