@@ -16,3 +16,19 @@ if uploaded_file:
     if st.button("Simpan ke CSV"):
         df.to_csv("data/portfolio.csv", index=False)
         st.success("✅ Data disimpan ke data/portfolio.csv")
+
+from modules.analyzer_fundamental import analisa_saham
+
+elif menu == "📈 Analisa Fundamental":
+    st.subheader("Analisa Fundamental per Emiten")
+
+    if 'df' in locals():
+        for kode in df['Kode Saham']:
+            with st.expander(f"Analisa {kode}"):
+                hasil = analisa_saham(kode)
+                if hasil:
+                    st.write(pd.DataFrame(hasil, index=[0]).T.rename(columns={0: 'Nilai'}))
+                else:
+                    st.warning(f"Gagal mengambil data untuk {kode}")
+    else:
+        st.info("Upload file PDF portofolio dulu di tab awal.")
