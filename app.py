@@ -74,5 +74,6 @@ elif menu == "🔁 Diversifikasi & Rekomendasi":
 
         st.markdown("📊 **Visualisasi Bobot Portofolio**")
         st.bar_chart(hasil.set_index("Kode Saham")["Bobot Portofolio (%)"])
-     except Exception as e:
+    except Exception as e:
         st.warning(f"⚠️ Gagal memuat data portofolio: {e}")
+
