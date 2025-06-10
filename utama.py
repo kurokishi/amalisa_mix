@@ -24,7 +24,7 @@ class PortfolioAnalyzer:
         
         # 2. Momentum
         analysis['Momentum_1M'] = self.df['Stock'].apply(
-            lambda x: self.get_price_momentum(x.split('-')[0], 30)
+            lambda x: self.get_price_momentum(x.split('-')[0], 30))
         
         # 3. Profitabilitas
         analysis['ROE'] = self.df['Stock'].apply(
