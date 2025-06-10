@@ -9,5 +9,6 @@ pdfplumber
 numpy
 statsmodels
 tensorflow==2.13.0
-prophet==1.1.5
-pystan==2.19.1.1
+prophet
+cmdstanpy
+
