@@ -14,7 +14,7 @@ st.title("📊 Stock Analyzer - Portofolio Ajaib")
 menu = st.sidebar.radio("Navigasi", [
     "📁 Upload Portofolio PDF",
     "📈 Analisa Fundamental",
-    "📊 Prediksi Harga Saham"
+    "📊 Prediksi Harga Saham",
     "🔁 Diversifikasi & Rekomendasi"
 ])
 
