@@ -23,8 +23,7 @@ if menu == "📁 Upload Portofolio PDF":
         st.success("📄 Data berhasil diparsing!")
         st.dataframe(df)
 
-        import os
-
+     import os
      if st.button("Simpan ke CSV"):
         os.makedirs("data", exist_ok=True)
         df.to_csv("data/portfolio.csv", index=False)
