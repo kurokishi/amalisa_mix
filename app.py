@@ -23,9 +23,13 @@ if menu == "📁 Upload Portofolio PDF":
         st.success("📄 Data berhasil diparsing!")
         st.dataframe(df)
 
-        if st.button("Simpan ke CSV"):
-            df.to_csv("data/portfolio.csv", index=False)
-            st.success("✅ Data disimpan ke data/portfolio.csv")
+        import os
+
+     if st.button("Simpan ke CSV"):
+        os.makedirs("data", exist_ok=True)
+        df.to_csv("data/portfolio.csv", index=False)
+        st.success("✅ Data disimpan ke data/portfolio.csv")
+
 
 elif menu == "📈 Analisa Fundamental":
     st.subheader("Analisa Fundamental Saham")
