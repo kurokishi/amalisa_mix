@@ -4,6 +4,7 @@ import pandas as pd
 from modules.pdf_parser import parse_portfolio_pdf
 from modules.analyzer_fundamental import analisa_saham
 from modules.analyzer_teknikal import fetch_history, predict_prophet, predict_arima
+from modules.diversification import analisa_diversifikasi
 import plotly.graph_objects as go
 
 st.set_page_config(page_title="Stock Analyzer", layout="wide")
@@ -14,6 +15,7 @@ menu = st.sidebar.radio("Navigasi", [
     "📁 Upload Portofolio PDF",
     "📈 Analisa Fundamental",
     "📊 Prediksi Harga Saham"
+    "🔁 Diversifikasi & Rekomendasi"
 ])
 
 if menu == "📁 Upload Portofolio PDF":
@@ -61,3 +63,16 @@ elif menu == "📊 Prediksi Harga Saham":
             st.line_chart(arima_result.set_index("ds")["yhat"])
     except Exception as e:
         st.warning(f"⚠️ Gagal memuat data harga: {e}")
+
+elif menu == "🔁 Diversifikasi & Rekomendasi":
+    st.subheader("Analisa Diversifikasi Portofolio")
+
+    try:
+        df = pd.read_csv("data/portfolio.csv")
+        hasil = analisa_diversifikasi(df)
+        st.dataframe(hasil.style.format({"Bobot Portofolio (%)": "{:.2f}"}))
+
+        st.markdown("📊 **Visualisasi Bobot Portofolio**")
+        st.bar_chart(hasil.set_index("Kode Saham")["Bobot Portofolio (%)"])
+     except Exception as e:
+        st.warning(f"⚠️ Gagal memuat data portofolio: {e}")
