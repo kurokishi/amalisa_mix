@@ -1,4 +1,8 @@
 import streamlit as st
+import warnings
+warnings.filterwarnings("ignore", message="A module that was compiled using NumPy 1.x")
+
+import streamlit as st
 import pandas as pd
 import numpy as np
 import yfinance as yf
@@ -12,6 +16,8 @@ import xgboost as xgb
 from datetime import datetime, timedelta
 import tempfile
 import os
+
+# ... (kode selanjutnya tetap sama seperti sebelumnya) ...
 
 # Konfigurasi Streamlit
 st.set_page_config(layout="wide", page_title="Portfolio Analysis Tool")
