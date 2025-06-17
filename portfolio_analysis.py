@@ -1,4 +1,3 @@
-import streamlit as st
 import warnings
 warnings.filterwarnings("ignore", message="A module that was compiled using NumPy 1.x")
 
@@ -17,7 +16,10 @@ from datetime import datetime, timedelta
 import tempfile
 import os
 
-# ... (kode selanjutnya tetap sama seperti sebelumnya) ...
+# Helper function untuk format mata uang
+def format_currency_idr(value):
+    """Format angka menjadi string mata uang IDR"""
+    return f"Rp{value:,.0f}".replace(",", ".")
 
 # Konfigurasi Streamlit
 st.set_page_config(layout="wide", page_title="Portfolio Analysis Tool")
@@ -66,14 +68,32 @@ def process_uploaded_file(uploaded_file):
 
 # Fungsi untuk mendapatkan data harga
 def get_stock_data(ticker, period='5y'):
-    stock = yf.Ticker(ticker)
-    hist = stock.history(period=period)
-    return hist.reset_index()[['Date', 'Close']].rename(columns={'Close': 'price'})
+    try:
+        stock = yf.Ticker(ticker)
+        hist = stock.history(period=period)
+        
+        # Reset index dan konversi ke tz-naive
+        hist = hist.reset_index()[['Date', 'Close']]
+        hist['Date'] = pd.to_datetime(hist['Date']).dt.tz_localize(None)
+        
+        return hist.rename(columns={'Close': 'price'})
+    except Exception as e:
+        st.error(f"Error getting stock data for {ticker}: {str(e)}")
+        return None
 
 # Fungsi prediksi dengan Prophet
 def prophet_prediction(df, days):
     try:
-        df_prophet = df.rename(columns={'Date': 'ds', 'price': 'y'})
+        # Buat salinan dataframe untuk menghindari modifikasi asli
+        df_prophet = df.copy()
+        
+        # Ubah nama kolom
+        df_prophet = df_prophet.rename(columns={'Date': 'ds', 'price': 'y'})
+        
+        # Hapus timezone dari kolom tanggal jika ada
+        if df_prophet['ds'].dt.tz is not None:
+            df_prophet['ds'] = df_prophet['ds'].dt.tz_localize(None)
+        
         model = Prophet(daily_seasonality=True)
         model.fit(df_prophet)
         
@@ -85,7 +105,7 @@ def prophet_prediction(df, days):
         st.error(f"Prophet Error: {str(e)}")
         return None
 
-# Fungsi prediksi dengan LSTM (DIPERBAIKI)
+# Fungsi prediksi dengan LSTM
 def lstm_prediction(df, days):
     try:
         scaler = MinMaxScaler()
@@ -123,7 +143,6 @@ def lstm_prediction(df, days):
             future_predictions.append(pred[0,0])
             inputs = np.append(inputs, pred)
             
-        # PERBAIKAN DI SINI (tambahkan penutup kurung)
         future_predictions = scaler.inverse_transform(
             np.array(future_predictions).reshape(-1,1)
         )
@@ -184,7 +203,7 @@ def xgboost_prediction(df, days):
         st.error(f"XGBoost Error: {str(e)}")
         return None
 
-# Fungsi visualisasi portfolio
+# Fungsi visualisasi portfolio (DIPERBAIKI untuk Rp)
 def visualize_portfolio(portfolio):
     if portfolio is None:
         return
@@ -203,11 +222,11 @@ def visualize_portfolio(portfolio):
     total_pl = total_value - total_investment
     total_pl_pct = (total_pl / total_investment) * 100 if total_investment > 0 else 0
     
-    # Tampilkan metrik portfolio
+    # Tampilkan metrik portfolio - UBAH KE Rp
     col1, col2, col3, col4 = st.columns(4)
-    col1.metric("Total Value", f"${total_value:,.2f}")
-    col2.metric("Total Investment", f"${total_investment:,.2f}")
-    col3.metric("Total P/L", f"${total_pl:,.2f}", f"{total_pl_pct:.2f}%")
+    col1.metric("Total Value", format_currency_idr(total_value))
+    col2.metric("Total Investment", format_currency_idr(total_investment))
+    col3.metric("Total P/L", format_currency_idr(total_pl), f"{total_pl_pct:.2f}%")
     col4.metric("Number of Stocks", len(portfolio))
     
     # Grafik komposisi portfolio
@@ -217,11 +236,18 @@ def visualize_portfolio(portfolio):
         autopct='%1.1f%%', ax=ax, startangle=90)
     st.pyplot(fig)
     
-    # Tabel kinerja saham
+    # Tabel kinerja saham - UBAH KE Rp
     st.subheader("Stock Performance")
-    st.dataframe(portfolio.sort_values('P/L %', ascending=False).reset_index(drop=True))
+    
+    # Buat salinan untuk tampilan dengan format Rp
+    portfolio_display = portfolio.copy()
+    money_cols = ['Current Price', 'Avg Price', 'Value', 'Investment', 'P/L']
+    for col in money_cols:
+        portfolio_display[col] = portfolio_display[col].apply(format_currency_idr)
+    
+    st.dataframe(portfolio_display.sort_values('P/L %', ascending=False).reset_index(drop=True))
 
-# Fungsi simulasi what-if
+# Fungsi simulasi what-if (DIPERBAIKI untuk Rp)
 def what_if_simulation(portfolio, new_stock, new_ticker, new_lots, new_price):
     if portfolio is None:
         portfolio = pd.DataFrame(columns=['Stock', 'Ticker', 'Lot Balance', 'Avg Price', 'Shares'])
@@ -238,7 +264,7 @@ def what_if_simulation(portfolio, new_stock, new_ticker, new_lots, new_price):
     visualize_portfolio(new_portfolio)
     return new_portfolio
 
-# Fungsi proyeksi bunga majemuk
+# Fungsi proyeksi bunga majemuk (DIPERBAIKI untuk Rp)
 def compound_interest_projection(principal, monthly_add, years, rate):
     periods = years * 12
     values = []
@@ -256,14 +282,14 @@ def compound_interest_projection(principal, monthly_add, years, rate):
     st.subheader("Compound Interest Projection")
     fig, ax = plt.subplots(figsize=(10, 6))
     ax.plot(projection['Month'], projection['Value'])
-    ax.set_title(f"Projection for {years} Years at {rate*100:.2f}% Annual Return")
-    ax.set_xlabel("Months")
-    ax.set_ylabel("Portfolio Value ($)")
+    ax.set_title(f"Proyeksi {years} Tahun dengan Return Tahunan {rate*100:.2f}%")
+    ax.set_xlabel("Bulan")
+    ax.set_ylabel("Nilai Portofolio (Rp)")  # DIUBAH
     st.pyplot(fig)
     
     return projection
 
-# Fungsi rekomendasi AI
+# Fungsi rekomendasi AI (DIPERBAIKI untuk Rp)
 def generate_recommendations(portfolio):
     if portfolio is None:
         return
@@ -278,22 +304,22 @@ def generate_recommendations(portfolio):
         pl_pct = (current_price - avg_price) / avg_price * 100
         
         if pl_pct > 25:
-            recommendation = "Sell"
-            reason = "Profit target achieved"
+            recommendation = "Jual"
+            reason = "Target profit tercapai"
         elif pl_pct < -15:
-            recommendation = "Buy"
-            reason = "Opportunity to average down"
+            recommendation = "Beli"
+            reason = "Peluang average down"
         else:
-            recommendation = "Hold"
-            reason = "Neutral position"
+            recommendation = "Tahan"
+            reason = "Posisi netral"
         
         recommendations.append({
-            'Stock': row['Stock'],
-            'Current Price': current_price,
-            'Avg Price': avg_price,
-            'P/L %': pl_pct,
-            'Recommendation': recommendation,
-            'Reason': reason
+            'Saham': row['Stock'],  # DIUBAH
+            'Harga Sekarang': format_currency_idr(current_price),  # DIUBAH
+            'Harga Rata': format_currency_idr(avg_price),  # DIUBAH
+            'P/L %': f"{pl_pct:.2f}%",
+            'Rekomendasi': recommendation,  # DIUBAH
+            'Alasan': reason  # DIUBAH
         })
     
     return pd.DataFrame(recommendations)
@@ -302,14 +328,14 @@ def generate_recommendations(portfolio):
 portfolio_df = process_uploaded_file(uploaded_file)
 
 if selected_menu == "Portfolio Analysis":
-    st.header("Portfolio Analysis")
+    st.header("Analisis Portofolio")
     visualize_portfolio(portfolio_df)
     
 elif selected_menu == "Price Prediction":
-    st.header("Stock Price Prediction")
+    st.header("Prediksi Harga Saham")
     
     if portfolio_df is not None:
-        selected_stock = st.selectbox("Select Stock", portfolio_df['Stock'])
+        selected_stock = st.selectbox("Pilih Saham", portfolio_df['Stock'])
         selected_row = portfolio_df[portfolio_df['Stock'] == selected_stock].iloc[0]
         ticker = selected_row['Ticker']
         
@@ -317,11 +343,11 @@ elif selected_menu == "Price Prediction":
         hist_data = get_stock_data(ticker)
         
         if hist_data is not None:
-            st.subheader(f"Historical Price: {selected_stock} ({ticker})")
+            st.subheader(f"Riwayat Harga: {selected_stock} ({ticker})")
             st.line_chart(hist_data.set_index('Date'))
             
             # Pilih model prediksi
-            model_option = st.selectbox("Select Prediction Model", 
+            model_option = st.selectbox("Pilih Model Prediksi", 
                                       ["Prophet", "LSTM", "XGBoost", "Ensemble"])
             
             # Jalankan prediksi
@@ -334,20 +360,20 @@ elif selected_menu == "Price Prediction":
                 results['XGBoost'] = xgboost_prediction(hist_data, prediction_days)
             
             # Visualisasi hasil
-            st.subheader("Price Predictions")
+            st.subheader("Prediksi Harga")
             fig, ax = plt.subplots(figsize=(12, 6))
-            hist_data.plot(x='Date', y='price', ax=ax, label='Historical')
+            hist_data.plot(x='Date', y='price', ax=ax, label='Historis')
             
             for model_name, pred in results.items():
                 if pred is not None:
-                    pred.plot(x='Date', y='price', ax=ax, label=f'{model_name} Prediction')
+                    pred.plot(x='Date', y='price', ax=ax, label=f'Prediksi {model_name}')
             
-            ax.set_title(f"{selected_stock} Price Prediction")
-            ax.set_xlabel("Date")
-            ax.set_ylabel("Price ($)")
+            ax.set_title(f"Prediksi Harga {selected_stock}")
+            ax.set_xlabel("Tanggal")
+            ax.set_ylabel("Harga (Rp)")  # DIUBAH
             st.pyplot(fig)
             
-            # Evaluasi model (jika ada data aktual untuk evaluasi)
+            # Evaluasi model
             if model_option != "Ensemble":
                 if results[model_option] is not None and len(hist_data) > 30:
                     # Ambil data terakhir untuk evaluasi
@@ -359,47 +385,47 @@ elif selected_menu == "Price Prediction":
                         st.metric(f"{model_option} RMSE", f"{rmse:.2f}")
 
 elif selected_menu == "What-If Simulation":
-    st.header("What-If Simulation")
+    st.header("Simulasi What-If")
     
     col1, col2 = st.columns(2)
     with col1:
-        st.subheader("Current Portfolio")
+        st.subheader("Portofolio Saat Ini")
         visualize_portfolio(portfolio_df)
     
     with col2:
-        st.subheader("Add New Investment")
-        new_stock = st.text_input("Stock Name")
-        new_ticker = st.text_input("Ticker Symbol")
-        new_lots = st.number_input("Number of Lots", min_value=1, value=10)
-        new_price = st.number_input("Price per Share ($)", min_value=0.01, value=100.0)
+        st.subheader("Tambahan Investasi Baru")
+        new_stock = st.text_input("Nama Saham")
+        new_ticker = st.text_input("Kode Saham")
+        new_lots = st.number_input("Jumlah Lot", min_value=1, value=10)
+        new_price = st.number_input("Harga per Saham (Rp)", min_value=0.01, value=100.0)  # DIUBAH
         
-        if st.button("Simulate"):
+        if st.button("Simulasikan"):
             what_if_simulation(portfolio_df, new_stock, new_ticker, new_lots, new_price)
 
 elif selected_menu == "AI Recommendations":
-    st.header("AI Investment Recommendations")
+    st.header("Rekomendasi AI")
     
     if portfolio_df is not None:
         recommendations = generate_recommendations(portfolio_df)
         st.dataframe(recommendations.style.applymap(
-            lambda x: 'background-color: lightgreen' if x == 'Buy' else 
-                     ('background-color: salmon' if x == 'Sell' else 'background-color: lightyellow'),
-            subset=['Recommendation']
+            lambda x: 'background-color: lightgreen' if x == 'Beli' else 
+                     ('background-color: salmon' if x == 'Jual' else 'background-color: lightyellow'),
+            subset=['Rekomendasi']  # DIUBAH
         ))
 
 elif selected_menu == "Compound Interest":
-    st.header("Compound Interest Projection")
+    st.header("Proyeksi Bunga Majemuk")
     
-    principal = st.number_input("Current Portfolio Value ($)", 
+    principal = st.number_input("Nilai Portofolio Saat Ini (Rp)",  # DIUBAH
                                min_value=0.0, 
                                value=10000.0)
-    monthly_add = st.number_input("Monthly Additional Investment ($)", 
+    monthly_add = st.number_input("Tambahan Investasi Bulanan (Rp)",  # DIUBAH
                                  min_value=0.0, 
                                  value=500.0)
-    years = st.slider("Years of Projection", 1, 50, 10)
-    rate = st.slider("Expected Annual Return (%)", 0.0, 30.0, 8.0) / 100.0
+    years = st.slider("Tahun Proyeksi", 1, 50, 10)
+    rate = st.slider("Return Tahunan yang Diharapkan (%)", 0.0, 30.0, 8.0) / 100.0
     
-    if st.button("Generate Projection"):
+    if st.button("Proyeksikan"):
         compound_interest_projection(principal, monthly_add, years, rate)
 
 # Simpan histori portofolio
