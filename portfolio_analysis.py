@@ -75,10 +75,11 @@ def prophet_prediction(df, days):
         forecast = model.predict(future)
         
         return forecast[['ds', 'yhat']].rename(columns={'ds': 'Date', 'yhat': 'price'})
-    except:
+    except Exception as e:
+        st.error(f"Prophet Error: {str(e)}")
         return None
 
-# Fungsi prediksi dengan LSTM
+# Fungsi prediksi dengan LSTM (DIPERBAIKI)
 def lstm_prediction(df, days):
     try:
         scaler = MinMaxScaler()
@@ -116,14 +117,17 @@ def lstm_prediction(df, days):
             future_predictions.append(pred[0,0])
             inputs = np.append(inputs, pred)
             
+        # PERBAIKAN DI SINI (tambahkan penutup kurung)
         future_predictions = scaler.inverse_transform(
             np.array(future_predictions).reshape(-1,1)
+        )
         
         last_date = df['Date'].iloc[-1]
         pred_dates = [last_date + timedelta(days=i) for i in range(1, days+1)]
         
         return pd.DataFrame({'Date': pred_dates, 'price': future_predictions.flatten()})
-    except:
+    except Exception as e:
+        st.error(f"LSTM Error: {str(e)}")
         return None
 
 # Fungsi prediksi dengan XGBoost
@@ -170,7 +174,8 @@ def xgboost_prediction(df, days):
             future_df.loc[future_df.index[i], 'price'] = pred[0]
         
         return future_df.reset_index().rename(columns={'index': 'Date'})[['Date', 'price']]
-    except:
+    except Exception as e:
+        st.error(f"XGBoost Error: {str(e)}")
         return None
 
 # Fungsi visualisasi portfolio
