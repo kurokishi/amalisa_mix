@@ -8,7 +8,7 @@ seaborn
 pdfplumber
 numpy
 statsmodels
-tensorflow==2.13.0
+tensorflow
 prophet
-cmdstanpy
+xgboost
 
