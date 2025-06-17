@@ -141,7 +141,7 @@ def prophet_prediction(df, days):
         st.error(f"Prophet Error: {str(e)}")
         return None
 
-# Fungsi prediksi dengan LSTM
+# Fungsi prediksi dengan LSTM - PERBAIKAN DI SINI
 def lstm_prediction(df, days):
     try:
         scaler = MinMaxScaler()
@@ -179,6 +179,7 @@ def lstm_prediction(df, days):
             future_predictions.append(pred[0,0])
             inputs = np.append(inputs, pred)
             
+        # PERBAIKAN DI SINI: Tutup kurung dengan benar
         future_predictions = scaler.inverse_transform(
             np.array(future_predictions).reshape(-1,1)
         
