@@ -182,6 +182,7 @@ def lstm_prediction(df, days):
         # PERBAIKAN DI SINI: Tutup kurung dengan benar
         future_predictions = scaler.inverse_transform(
             np.array(future_predictions).reshape(-1,1)
+        )
         
         last_date = df['Date'].iloc[-1]
         pred_dates = [last_date + timedelta(days=i) for i in range(1, days+1)]
