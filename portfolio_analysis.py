@@ -56,6 +56,79 @@ def get_fundamental_data(ticker):
         st.error(f"Error getting fundamental data for {ticker}: {str(e)}")
         return None
 
+# Fungsi baru: Ambil data dividen
+def get_dividend_data(ticker):
+    """Ambil data dividen historis dari Yahoo Finance"""
+    try:
+        stock = yf.Ticker(ticker)
+        divs = stock.dividends
+        
+        if divs.empty:
+            return None
+        
+        # Konversi ke DataFrame
+        div_df = divs.reset_index()
+        div_df.columns = ['Date', 'Dividend']
+        
+        # Hitung dividend yield tahunan
+        div_df['Year'] = div_df['Date'].dt.year
+        annual_div = div_df.groupby('Year')['Dividend'].sum().reset_index()
+        
+        # Dapatkan harga penutupan tahunan
+        hist = stock.history(period="max")
+        hist = hist.reset_index()[['Date', 'Close']]
+        hist['Year'] = hist['Date'].dt.year
+        annual_price = hist.groupby('Year')['Close'].last().reset_index()
+        
+        # Gabungkan data
+        merged = annual_div.merge(annual_price, on='Year')
+        merged['Dividend Yield'] = (merged['Dividend'] / merged['Close']) * 100
+        
+        return merged
+    except Exception as e:
+        st.error(f"Error getting dividend data for {ticker}: {str(e)}")
+        return None
+
+# Fungsi baru: Hitung proyeksi dividen
+def calculate_dividend_projection(dividend_data, years=5):
+    """Hitung proyeksi dividen berdasarkan rata-rata pertumbuhan historis"""
+    if dividend_data is None or len(dividend_data) < 3:
+        return None
+    
+    try:
+        # Hitung pertumbuhan dividen
+        div_growth = []
+        divs = dividend_data.sort_values('Year')
+        
+        for i in range(1, len(divs)):
+            prev = divs.iloc[i-1]['Dividend']
+            curr = divs.iloc[i]['Dividend']
+            if prev > 0:
+                growth = (curr - prev) / prev
+                div_growth.append(growth)
+        
+        if not div_growth:
+            return None
+            
+        # Hitung rata-rata pertumbuhan
+        avg_growth = np.mean(div_growth)
+        
+        # Proyeksikan dividen ke depan
+        last_year = divs.iloc[-1]
+        projections = []
+        
+        for year in range(1, years+1):
+            projected_div = last_year['Dividend'] * (1 + avg_growth) ** year
+            projections.append({
+                'Year': last_year['Year'] + year,
+                'Projected Dividend': projected_div
+            })
+        
+        return pd.DataFrame(projections)
+    except Exception as e:
+        st.error(f"Error calculating dividend projection: {str(e)}")
+        return None
+
 # Konfigurasi Streamlit
 st.set_page_config(layout="wide", page_title="Portfolio Analysis Tool")
 st.title("🪙 AI Portfolio Management Dashboard")
@@ -301,15 +374,21 @@ def what_if_simulation(portfolio, new_stock, new_ticker, new_lots, new_price):
     visualize_portfolio(new_portfolio)
     return new_portfolio
 
-# Fungsi proyeksi bunga majemuk (DIPERBAIKI untuk Rp)
-def compound_interest_projection(principal, monthly_add, years, rate):
+# Fungsi proyeksi bunga majemuk (DIPERBAIKI untuk Rp + TAMBAH DIVIDEN)
+def compound_interest_projection(principal, monthly_add, years, rate, dividend_yield=0.0):
     periods = years * 12
     values = []
     current = principal
+    dividend_total = 0
     
     for month in range(periods):
-        current = current * (1 + rate/12) + monthly_add
+        # Tambahkan return dari capital gain dan dividen
+        monthly_return = rate / 12 + dividend_yield / 12
+        current = current * (1 + monthly_return) + monthly_add
         values.append(current)
+        
+        # Hitung dividen bulanan
+        dividend_total += current * (dividend_yield / 12)
     
     projection = pd.DataFrame({
         'Month': range(1, periods+1),
@@ -319,10 +398,13 @@ def compound_interest_projection(principal, monthly_add, years, rate):
     st.subheader("Compound Interest Projection")
     fig, ax = plt.subplots(figsize=(10, 6))
     ax.plot(projection['Month'], projection['Value'])
-    ax.set_title(f"Proyeksi {years} Tahun dengan Return Tahunan {rate*100:.2f}%")
+    ax.set_title(f"Proyeksi {years} Tahun dengan Return Tahunan {rate*100:.2f}% + Dividen {dividend_yield*100:.2f}%")
     ax.set_xlabel("Bulan")
     ax.set_ylabel("Nilai Portofolio (Rp)")
     st.pyplot(fig)
+    
+    # Tampilkan total dividen
+    st.metric("Total Dividen Proyeksi", format_currency_idr(dividend_total))
     
     return projection
 
@@ -453,19 +535,43 @@ elif selected_menu == "AI Recommendations":
 elif selected_menu == "Compound Interest":
     st.header("Proyeksi Bunga Majemuk")
     
-    principal = st.number_input("Nilai Portofolio Saat Ini (Rp)",
-                               min_value=0.0, 
-                               value=10000.0)
-    monthly_add = st.number_input("Tambahan Investasi Bulanan (Rp)",
-                                 min_value=0.0, 
-                                 value=500.0)
-    years = st.slider("Tahun Proyeksi", 1, 50, 10)
-    rate = st.slider("Return Tahunan yang Diharapkan (%)", 0.0, 30.0, 8.0) / 100.0
+    col1, col2 = st.columns(2)
+    with col1:
+        principal = st.number_input("Nilai Portofolio Saat Ini (Rp)",
+                                   min_value=0.0, 
+                                   value=10000.0)
+        monthly_add = st.number_input("Tambahan Investasi Bulanan (Rp)",
+                                     min_value=0.0, 
+                                     value=500.0)
+        years = st.slider("Tahun Proyeksi", 1, 50, 10)
+        rate = st.slider("Return Tahunan yang Diharapkan (%)", 0.0, 30.0, 8.0) / 100.0
+        
+    with col2:
+        # Jika ada portofolio, hitung rata-rata dividend yield
+        avg_dividend_yield = 0.0
+        if portfolio_df is not None:
+            dividend_yields = []
+            for _, row in portfolio_df.iterrows():
+                ticker = row['Ticker']
+                try:
+                    stock = yf.Ticker(ticker)
+                    dividend_yield = stock.info.get('dividendYield', 0.0) or 0.0
+                    if dividend_yield > 0:
+                        dividend_yields.append(dividend_yield)
+                except:
+                    pass
+            
+            if dividend_yields:
+                avg_dividend_yield = np.mean(dividend_yields)
+        
+        dividend_yield = st.slider("Dividend Yield Tahunan (%)", 
+                                 0.0, 15.0, 
+                                 float(avg_dividend_yield * 100)) / 100.0
     
     if st.button("Proyeksikan"):
-        compound_interest_projection(principal, monthly_add, years, rate)
+        compound_interest_projection(principal, monthly_add, years, rate, dividend_yield)
 
-# MODIFIKASI: Tambah Fundamental Analysis
+# MODIFIKASI: Tambah fitur Analisis Dividen di Fundamental Analysis
 elif selected_menu == "Fundamental Analysis":
     st.header("Analisis Fundamental Saham")
     
@@ -565,6 +671,84 @@ elif selected_menu == "Fundamental Analysis":
                     st.warning(f"Tidak ada data {selected_metric} yang tersedia")
             else:
                 st.warning(f"Metrik {selected_metric} tidak tersedia dalam data")
+            
+            # ANALISIS DIVIDEN BARU
+            st.divider()
+            st.subheader("Analisis Dividen Saham")
+            
+            # Pilih saham untuk analisis dividen
+            selected_stock = st.selectbox("Pilih Saham untuk Analisis Dividen", portfolio_df['Stock'])
+            selected_row = portfolio_df[portfolio_df['Stock'] == selected_stock].iloc[0]
+            ticker = selected_row['Ticker']
+            shares = selected_row['Shares']
+            
+            # Dapatkan data dividen
+            dividend_data = get_dividend_data(ticker)
+            
+            if dividend_data is None:
+                st.warning(f"Tidak ada data dividen untuk {selected_stock}")
+            else:
+                # Tampilkan metrik utama
+                st.subheader(f"Dividen {selected_stock} ({ticker})")
+                
+                # Hitung metrik penting
+                current_price = yf.Ticker(ticker).history(period='1d')['Close'].iloc[-1]
+                last_year = dividend_data.iloc[-1]
+                current_yield = last_year['Dividend Yield']
+                total_dividend = last_year['Dividend'] * shares
+                
+                # Hitung rata-rata 5 tahun
+                avg_5y_yield = dividend_data['Dividend Yield'].tail(5).mean()
+                
+                col1, col2, col3, col4 = st.columns(4)
+                col1.metric("Dividend Yield Terakhir", f"{current_yield:.2f}%")
+                col2.metric("Total Dividen Terakhir", format_currency_idr(total_dividend))
+                col3.metric("Rata-rata Dividend Yield 5 Tahun", f"{avg_5y_yield:.2f}%")
+                col4.metric("Jumlah Saham", f"{shares:,}")
+                
+                # Tampilkan grafik historis
+                st.subheader("Riwayat Dividen")
+                fig, (ax1, ax2) = plt.subplots(2, 1, figsize=(12, 10))
+                
+                # Grafik 1: Dividen per tahun
+                ax1.bar(dividend_data['Year'], dividend_data['Dividend'])
+                ax1.set_title("Dividen per Saham per Tahun")
+                ax1.set_ylabel("Dividen (Rp)")
+                ax1.grid(True, linestyle='--', alpha=0.7)
+                
+                # Grafik 2: Dividend Yield
+                ax2.plot(dividend_data['Year'], dividend_data['Dividend Yield'], 'o-')
+                ax2.set_title("Dividend Yield per Tahun")
+                ax2.set_ylabel("Dividend Yield (%)")
+                ax2.grid(True, linestyle='--', alpha=0.7)
+                
+                plt.tight_layout()
+                st.pyplot(fig)
+                
+                # Proyeksi dividen
+                st.subheader("Proyeksi Dividen")
+                projection = calculate_dividend_projection(dividend_data)
+                
+                if projection is not None:
+                    # Hitung total dividen untuk proyeksi
+                    projection['Total Dividen'] = projection['Projected Dividend'] * shares
+                    
+                    col1, col2 = st.columns(2)
+                    with col1:
+                        st.write("Proyeksi Dividen per Saham:")
+                        st.dataframe(projection[['Year', 'Projected Dividend']].set_index('Year'))
+                    
+                    with col2:
+                        st.write("Total Dividen untuk Portofolio:")
+                        st.dataframe(projection[['Year', 'Total Dividen']].set_index('Year'))
+                    
+                    # Grafik proyeksi
+                    fig, ax = plt.subplots(figsize=(10, 6))
+                    ax.bar(projection['Year'], projection['Projected Dividend'])
+                    ax.set_title("Proyeksi Dividen per Saham")
+                    ax.set_xlabel("Tahun")
+                    ax.set_ylabel("Dividen (Rp)")
+                    st.pyplot(fig)
 
 # Simpan histori portofolio
 if portfolio_df is not None and uploaded_file is not None:
