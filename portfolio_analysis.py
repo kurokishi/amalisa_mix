@@ -374,6 +374,246 @@ def what_if_simulation(portfolio, new_stock, new_ticker, new_lots, new_price):
     visualize_portfolio(new_portfolio)
     return new_portfolio
 
+# ... (previous code remains unchanged until What-If Simulation section)
+
+elif selected_menu == "What-If Simulation":
+    st.header("Simulasi What-If")
+    
+    # Add tabs for different simulation types
+    tab1, tab2 = st.tabs(["Tambahan Saham Baru", "Simulasi Average Down"])
+    
+    with tab1:
+        col1, col2 = st.columns(2)
+        with col1:
+            st.subheader("Portofolio Saat Ini")
+            visualize_portfolio(portfolio_df)
+        
+        with col2:
+            st.subheader("Tambahan Investasi Baru")
+            new_stock = st.text_input("Nama Saham")
+            new_ticker = st.text_input("Kode Saham")
+            new_lots = st.number_input("Jumlah Lot", min_value=1, value=10)
+            new_price = st.number_input("Harga per Saham (Rp)", min_value=0.01, value=100.0)
+            
+            if st.button("Simulasikan Penambahan Saham"):
+                what_if_simulation(portfolio_df, new_stock, new_ticker, new_lots, new_price)
+    
+    with tab2:
+        st.subheader("Simulasi Average Down")
+        
+        if portfolio_df is None or portfolio_df.empty:
+            st.warning("Silakan upload portofolio terlebih dahulu")
+        else:
+            col1, col2 = st.columns(2)
+            
+            with col1:
+                # Select stock to average down
+                selected_stock = st.selectbox("Pilih Saham untuk Average Down", portfolio_df['Stock'])
+                selected_row = portfolio_df[portfolio_df['Stock'] == selected_stock].iloc[0]
+                
+                # Get current price
+                current_price = yf.Ticker(selected_row['Ticker']).history(period='1d')['Close'].iloc[-1]
+                
+                st.metric("Saham Terpilih", selected_stock)
+                st.metric("Jumlah Saham Saat Ini", f"{selected_row['Shares']:,}")
+                st.metric("Harga Rata-rata Saat Ini", format_currency_idr(selected_row['Avg Price']))
+                st.metric("Harga Pasar Terkini", format_currency_idr(current_price))
+                
+                # Strategy selection
+                strategy = st.selectbox("Pilih Strategi", 
+                                      ["Beli saat turun X%", 
+                                       "Beli bulanan tetap (DCA)", 
+                                       "Beli bertahap (Pyramid)"])
+                
+                # Common parameters
+                total_budget = st.number_input("Total Budget untuk Average Down (Rp)", 
+                                             min_value=1000000, value=10000000, step=1000000)
+                max_drop = st.slider("Maksimum Penurunan Harga (%)", 10, 70, 30)
+            
+            with col2:
+                # Strategy-specific parameters
+                if strategy == "Beli saat turun X%":
+                    drop_percent = st.slider("Beli setiap penurunan (%)", 5, 20, 10)
+                    buy_lots = st.number_input("Jumlah Lot per Pembelian", min_value=1, value=5)
+                    st.caption("Strategi: Beli setiap harga turun X% dari harga terakhir")
+                
+                elif strategy == "Beli bulanan tetap (DCA)":
+                    monthly_lots = st.number_input("Jumlah Lot per Bulan", min_value=1, value=10)
+                    duration = st.slider("Durasi (bulan)", 1, 24, 6)
+                    st.caption("Strategi: Beli jumlah tetap setiap bulan")
+                
+                elif strategy == "Beli bertahap (Pyramid)":
+                    base_lots = st.number_input("Jumlah Lot Awal", min_value=1, value=5)
+                    increase_factor = st.slider("Faktor Peningkatan", 1.0, 3.0, 1.5, step=0.1)
+                    drop_percent = st.slider("Beli setiap penurunan (%)", 5, 20, 10)
+                    st.caption("Strategi: Tambah jumlah lot saat harga turun lebih dalam")
+                
+                # Run simulation button
+                if st.button("Jalankan Simulasi Average Down"):
+                    # Initialize variables
+                    starting_price = current_price
+                    budget_used = 0
+                    purchases = []
+                    new_avg_price = selected_row['Avg Price']
+                    new_shares = selected_row['Shares']
+                    current_drop = 0
+                    
+                    # Strategy 1: Buy at every X% drop
+                    if strategy == "Beli saat turun X%":
+                        while current_drop < max_drop and budget_used < total_budget:
+                            # Calculate next buy price
+                            buy_price = starting_price * (1 - (current_drop + drop_percent)/100)
+                            
+                            # Calculate cost
+                            cost = buy_price * (buy_lots * 100)
+                            
+                            # Check if we have enough budget
+                            if budget_used + cost > total_budget:
+                                break
+                            
+                            # Add purchase
+                            purchases.append({
+                                'Drop %': current_drop + drop_percent,
+                                'Harga Beli': buy_price,
+                                'Lot': buy_lots,
+                                'Saham': buy_lots * 100,
+                                'Biaya': cost
+                            })
+                            
+                            # Update portfolio
+                            new_avg_price = ((new_avg_price * new_shares) + (buy_price * buy_lots * 100)) / (new_shares + (buy_lots * 100))
+                            new_shares += buy_lots * 100
+                            budget_used += cost
+                            current_drop += drop_percent
+                    
+                    # Strategy 2: Monthly DCA
+                    elif strategy == "Beli bulanan tetap (DCA)":
+                        monthly_cost = current_price * (monthly_lots * 100)
+                        months = min(duration, int(total_budget / monthly_cost))
+                        
+                        for month in range(1, months + 1):
+                            # Simulate price drop (random between 0 and max_drop)
+                            drop = min(max_drop, np.random.uniform(0, max_drop))
+                            buy_price = current_price * (1 - drop/100)
+                            
+                            # Add purchase
+                            purchases.append({
+                                'Bulan': month,
+                                'Penurunan %': drop,
+                                'Harga Beli': buy_price,
+                                'Lot': monthly_lots,
+                                'Saham': monthly_lots * 100,
+                                'Biaya': buy_price * monthly_lots * 100
+                            })
+                            
+                            # Update portfolio
+                            new_avg_price = ((new_avg_price * new_shares) + (buy_price * monthly_lots * 100)) / (new_shares + (monthly_lots * 100))
+                            new_shares += monthly_lots * 100
+                            budget_used += buy_price * monthly_lots * 100
+                    
+                    # Strategy 3: Pyramid buying
+                    elif strategy == "Beli bertahap (Pyramid)":
+                        current_level = 1
+                        current_drop = 0
+                        
+                        while current_drop < max_drop and budget_used < total_budget:
+                            # Calculate next buy price and lot size
+                            buy_price = starting_price * (1 - (current_drop + drop_percent)/100)
+                            level_lots = base_lots * (increase_factor ** (current_level - 1))
+                            
+                            # Calculate cost
+                            cost = buy_price * (level_lots * 100)
+                            
+                            # Check if we have enough budget
+                            if budget_used + cost > total_budget:
+                                break
+                            
+                            # Add purchase
+                            purchases.append({
+                                'Level': current_level,
+                                'Drop %': current_drop + drop_percent,
+                                'Harga Beli': buy_price,
+                                'Lot': level_lots,
+                                'Saham': level_lots * 100,
+                                'Biaya': cost
+                            })
+                            
+                            # Update portfolio
+                            new_avg_price = ((new_avg_price * new_shares) + (buy_price * level_lots * 100)) / (new_shares + (level_lots * 100))
+                            new_shares += level_lots * 100
+                            budget_used += cost
+                            current_drop += drop_percent
+                            current_level += 1
+                    
+                    # Display results
+                    if purchases:
+                        # Create purchases dataframe
+                        df_purchases = pd.DataFrame(purchases)
+                        
+                        # Calculate savings
+                        original_cost = selected_row['Shares'] * selected_row['Avg Price']
+                        new_cost = original_cost + budget_used
+                        savings_per_share = selected_row['Avg Price'] - new_avg_price
+                        total_savings = savings_per_share * selected_row['Shares']
+                        
+                        # Show summary metrics
+                        st.success(f"Simulasi Selesai! Total pembelian: {format_currency_idr(budget_used)}")
+                        col1, col2, col3 = st.columns(3)
+                        col1.metric("Harga Rata-rata Baru", 
+                                    format_currency_idr(new_avg_price), 
+                                    f"↓ {selected_row['Avg Price'] - new_avg_price:.2f}")
+                        col2.metric("Total Saham Baru", f"{new_shares:,}", f"↑ {new_shares - selected_row['Shares']:,}")
+                        col3.metric("Penghematan per Saham", 
+                                   format_currency_idr(savings_per_share), 
+                                   f"Total: {format_currency_idr(total_savings)}")
+                        
+                        # Show purchases table
+                        st.subheader("Detail Pembelian")
+                        st.dataframe(df_purchases)
+                        
+                        # Create chart
+                        fig, ax = plt.subplots(figsize=(12, 6))
+                        
+                        # Plot price drop
+                        if strategy == "Beli bulanan tetap (DCA)":
+                            x = df_purchases['Bulan']
+                            x_label = "Bulan"
+                        else:
+                            x = df_purchases['Drop %']
+                            x_label = "Penurunan Harga (%)"
+                        
+                        # Plot purchase points
+                        ax.scatter(x, df_purchases['Harga Beli'], 
+                                  s=df_purchases['Lot']*50, 
+                                  c='red', alpha=0.7, label='Pembelian')
+                        
+                        # Plot original and new average price
+                        ax.axhline(y=selected_row['Avg Price'], color='blue', 
+                                  linestyle='--', label='Harga Rata Lama')
+                        ax.axhline(y=new_avg_price, color='green', 
+                                  linestyle='--', label='Harga Rata Baru')
+                        
+                        ax.set_title(f"Simulasi Average Down untuk {selected_stock}")
+                        ax.set_xlabel(x_label)
+                        ax.set_ylabel("Harga (Rp)")
+                        ax.legend()
+                        ax.grid(True, linestyle='--', alpha=0.7)
+                        
+                        st.pyplot(fig)
+                        
+                        # Show updated portfolio
+                        st.subheader("Portofolio Setelah Average Down")
+                        updated_portfolio = portfolio_df.copy()
+                        mask = updated_portfolio['Stock'] == selected_stock
+                        updated_portfolio.loc[mask, 'Avg Price'] = new_avg_price
+                        updated_portfolio.loc[mask, 'Lot Balance'] = new_shares / 100
+                        updated_portfolio.loc[mask, 'Shares'] = new_shares
+                        visualize_portfolio(updated_portfolio)
+                    else:
+                        st.warning("Tidak ada pembelian yang dilakukan. Budget tidak cukup atau parameter tidak valid.")
+
+# ... (rest of the code remains unchanged)
+
 # Fungsi proyeksi bunga majemuk (DIPERBAIKI untuk Rp + TAMBAH DIVIDEN)
 def compound_interest_projection(principal, monthly_add, years, rate, dividend_yield=0.0):
     periods = years * 12
