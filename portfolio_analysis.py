@@ -374,8 +374,136 @@ def what_if_simulation(portfolio, new_stock, new_ticker, new_lots, new_price):
     visualize_portfolio(new_portfolio)
     return new_portfolio
 
-# ... (previous code remains unchanged until What-If Simulation section)
+# Fungsi proyeksi bunga majemuk (DIPERBAIKI untuk Rp + TAMBAH DIVIDEN)
+def compound_interest_projection(principal, monthly_add, years, rate, dividend_yield=0.0):
+    periods = years * 12
+    values = []
+    current = principal
+    dividend_total = 0
+    
+    for month in range(periods):
+        # Tambahkan return dari capital gain dan dividen
+        monthly_return = rate / 12 + dividend_yield / 12
+        current = current * (1 + monthly_return) + monthly_add
+        values.append(current)
+        
+        # Hitung dividen bulanan
+        dividend_total += current * (dividend_yield / 12)
+    
+    projection = pd.DataFrame({
+        'Month': range(1, periods+1),
+        'Value': values
+    })
+    
+    st.subheader("Compound Interest Projection")
+    fig, ax = plt.subplots(figsize=(10, 6))
+    ax.plot(projection['Month'], projection['Value'])
+    ax.set_title(f"Proyeksi {years} Tahun dengan Return Tahunan {rate*100:.2f}% + Dividen {dividend_yield*100:.2f}%")
+    ax.set_xlabel("Bulan")
+    ax.set_ylabel("Nilai Portofolio (Rp)")
+    st.pyplot(fig)
+    
+    # Tampilkan total dividen
+    st.metric("Total Dividen Proyeksi", format_currency_idr(dividend_total))
+    
+    return projection
 
+# Fungsi rekomendasi AI (DIPERBAIKI untuk Rp)
+def generate_recommendations(portfolio):
+    if portfolio is None:
+        return
+    
+    recommendations = []
+    for _, row in portfolio.iterrows():
+        ticker = row['Ticker']
+        avg_price = row['Avg Price']
+        current_price = yf.Ticker(ticker).history(period='1d')['Close'].iloc[-1]
+        
+        # Analisis sederhana
+        pl_pct = (current_price - avg_price) / avg_price * 100
+        
+        if pl_pct > 25:
+            recommendation = "Jual"
+            reason = "Target profit tercapai"
+        elif pl_pct < -15:
+            recommendation = "Beli"
+            reason = "Peluang average down"
+        else:
+            recommendation = "Tahan"
+            reason = "Posisi netral"
+        
+        recommendations.append({
+            'Saham': row['Stock'],
+            'Harga Sekarang': format_currency_idr(current_price),
+            'Harga Rata': format_currency_idr(avg_price),
+            'P/L %': f"{pl_pct:.2f}%",
+            'Rekomendasi': recommendation,
+            'Alasan': reason
+        })
+    
+    return pd.DataFrame(recommendations)
+
+# Main App Logic
+portfolio_df = process_uploaded_file(uploaded_file)
+
+if selected_menu == "Portfolio Analysis":
+    st.header("Analisis Portofolio")
+    visualize_portfolio(portfolio_df)
+    
+elif selected_menu == "Price Prediction":
+    st.header("Prediksi Harga Saham")
+    
+    if portfolio_df is not None:
+        selected_stock = st.selectbox("Pilih Saham", portfolio_df['Stock'])
+        selected_row = portfolio_df[portfolio_df['Stock'] == selected_stock].iloc[0]
+        ticker = selected_row['Ticker']
+        
+        # Dapatkan data historis
+        hist_data = get_stock_data(ticker)
+        
+        if hist_data is not None:
+            st.subheader(f"Riwayat Harga: {selected_stock} ({ticker})")
+            st.line_chart(hist_data.set_index('Date'))
+            
+            # Pilih model prediksi
+            model_option = st.selectbox("Pilih Model Prediksi", 
+                                      ["Prophet", "LSTM", "XGBoost", "Ensemble"])
+            
+            # Jalankan prediksi
+            results = {}
+            if model_option in ["Prophet", "Ensemble"]:
+                results['Prophet'] = prophet_prediction(hist_data, prediction_days)
+            if model_option in ["LSTM", "Ensemble"]:
+                results['LSTM'] = lstm_prediction(hist_data, prediction_days)
+            if model_option in ["XGBoost", "Ensemble"]:
+                results['XGBoost'] = xgboost_prediction(hist_data, prediction_days)
+            
+            # Visualisasi hasil
+            st.subheader("Prediksi Harga")
+            fig, ax = plt.subplots(figsize=(12, 6))
+            hist_data.plot(x='Date', y='price', ax=ax, label='Historis')
+            
+            for model_name, pred in results.items():
+                if pred is not None:
+                    pred.plot(x='Date', y='price', ax=ax, label=f'Prediksi {model_name}')
+            
+            ax.set_title(f"Prediksi Harga {selected_stock}")
+            ax.set_xlabel("Tanggal")
+            ax.set_ylabel("Harga (Rp)")
+            st.pyplot(fig)
+            
+            # Evaluasi model
+            if model_option != "Ensemble":
+                if results[model_option] is not None and len(hist_data) > 30:
+                    # Ambil data terakhir untuk evaluasi
+                    actual = hist_data[-prediction_days:]
+                    predicted = results[model_option].iloc[:len(actual)]
+                    
+                    if len(actual) == len(predicted):
+                        rmse = np.sqrt(mean_squared_error(actual['price'], predicted['price']))
+                        st.metric(f"{model_option} RMSE", f"{rmse:.2f}")
+
+# PERBAIKAN DI SINI: Indentasi yang benar untuk menu What-If Simulation
 elif selected_menu == "What-If Simulation":
     st.header("Simulasi What-If")
     
@@ -611,155 +739,6 @@ elif selected_menu == "What-If Simulation":
                         visualize_portfolio(updated_portfolio)
                     else:
                         st.warning("Tidak ada pembelian yang dilakukan. Budget tidak cukup atau parameter tidak valid.")
-
-# ... (rest of the code remains unchanged)
-
-# Fungsi proyeksi bunga majemuk (DIPERBAIKI untuk Rp + TAMBAH DIVIDEN)
-def compound_interest_projection(principal, monthly_add, years, rate, dividend_yield=0.0):
-    periods = years * 12
-    values = []
-    current = principal
-    dividend_total = 0
-    
-    for month in range(periods):
-        # Tambahkan return dari capital gain dan dividen
-        monthly_return = rate / 12 + dividend_yield / 12
-        current = current * (1 + monthly_return) + monthly_add
-        values.append(current)
-        
-        # Hitung dividen bulanan
-        dividend_total += current * (dividend_yield / 12)
-    
-    projection = pd.DataFrame({
-        'Month': range(1, periods+1),
-        'Value': values
-    })
-    
-    st.subheader("Compound Interest Projection")
-    fig, ax = plt.subplots(figsize=(10, 6))
-    ax.plot(projection['Month'], projection['Value'])
-    ax.set_title(f"Proyeksi {years} Tahun dengan Return Tahunan {rate*100:.2f}% + Dividen {dividend_yield*100:.2f}%")
-    ax.set_xlabel("Bulan")
-    ax.set_ylabel("Nilai Portofolio (Rp)")
-    st.pyplot(fig)
-    
-    # Tampilkan total dividen
-    st.metric("Total Dividen Proyeksi", format_currency_idr(dividend_total))
-    
-    return projection
-
-# Fungsi rekomendasi AI (DIPERBAIKI untuk Rp)
-def generate_recommendations(portfolio):
-    if portfolio is None:
-        return
-    
-    recommendations = []
-    for _, row in portfolio.iterrows():
-        ticker = row['Ticker']
-        avg_price = row['Avg Price']
-        current_price = yf.Ticker(ticker).history(period='1d')['Close'].iloc[-1]
-        
-        # Analisis sederhana
-        pl_pct = (current_price - avg_price) / avg_price * 100
-        
-        if pl_pct > 25:
-            recommendation = "Jual"
-            reason = "Target profit tercapai"
-        elif pl_pct < -15:
-            recommendation = "Beli"
-            reason = "Peluang average down"
-        else:
-            recommendation = "Tahan"
-            reason = "Posisi netral"
-        
-        recommendations.append({
-            'Saham': row['Stock'],
-            'Harga Sekarang': format_currency_idr(current_price),
-            'Harga Rata': format_currency_idr(avg_price),
-            'P/L %': f"{pl_pct:.2f}%",
-            'Rekomendasi': recommendation,
-            'Alasan': reason
-        })
-    
-    return pd.DataFrame(recommendations)
-
-# Main App Logic
-portfolio_df = process_uploaded_file(uploaded_file)
-
-if selected_menu == "Portfolio Analysis":
-    st.header("Analisis Portofolio")
-    visualize_portfolio(portfolio_df)
-    
-elif selected_menu == "Price Prediction":
-    st.header("Prediksi Harga Saham")
-    
-    if portfolio_df is not None:
-        selected_stock = st.selectbox("Pilih Saham", portfolio_df['Stock'])
-        selected_row = portfolio_df[portfolio_df['Stock'] == selected_stock].iloc[0]
-        ticker = selected_row['Ticker']
-        
-        # Dapatkan data historis
-        hist_data = get_stock_data(ticker)
-        
-        if hist_data is not None:
-            st.subheader(f"Riwayat Harga: {selected_stock} ({ticker})")
-            st.line_chart(hist_data.set_index('Date'))
-            
-            # Pilih model prediksi
-            model_option = st.selectbox("Pilih Model Prediksi", 
-                                      ["Prophet", "LSTM", "XGBoost", "Ensemble"])
-            
-            # Jalankan prediksi
-            results = {}
-            if model_option in ["Prophet", "Ensemble"]:
-                results['Prophet'] = prophet_prediction(hist_data, prediction_days)
-            if model_option in ["LSTM", "Ensemble"]:
-                results['LSTM'] = lstm_prediction(hist_data, prediction_days)
-            if model_option in ["XGBoost", "Ensemble"]:
-                results['XGBoost'] = xgboost_prediction(hist_data, prediction_days)
-            
-            # Visualisasi hasil
-            st.subheader("Prediksi Harga")
-            fig, ax = plt.subplots(figsize=(12, 6))
-            hist_data.plot(x='Date', y='price', ax=ax, label='Historis')
-            
-            for model_name, pred in results.items():
-                if pred is not None:
-                    pred.plot(x='Date', y='price', ax=ax, label=f'Prediksi {model_name}')
-            
-            ax.set_title(f"Prediksi Harga {selected_stock}")
-            ax.set_xlabel("Tanggal")
-            ax.set_ylabel("Harga (Rp)")
-            st.pyplot(fig)
-            
-            # Evaluasi model
-            if model_option != "Ensemble":
-                if results[model_option] is not None and len(hist_data) > 30:
-                    # Ambil data terakhir untuk evaluasi
-                    actual = hist_data[-prediction_days:]
-                    predicted = results[model_option].iloc[:len(actual)]
-                    
-                    if len(actual) == len(predicted):
-                        rmse = np.sqrt(mean_squared_error(actual['price'], predicted['price']))
-                        st.metric(f"{model_option} RMSE", f"{rmse:.2f}")
-
-elif selected_menu == "What-If Simulation":
-    st.header("Simulasi What-If")
-    
-    col1, col2 = st.columns(2)
-    with col1:
-        st.subheader("Portofolio Saat Ini")
-        visualize_portfolio(portfolio_df)
-    
-    with col2:
-        st.subheader("Tambahan Investasi Baru")
-        new_stock = st.text_input("Nama Saham")
-        new_ticker = st.text_input("Kode Saham")
-        new_lots = st.number_input("Jumlah Lot", min_value=1, value=10)
-        new_price = st.number_input("Harga per Saham (Rp)", min_value=0.01, value=100.0)
-        
-        if st.button("Simulasikan"):
-            what_if_simulation(portfolio_df, new_stock, new_ticker, new_lots, new_price)
 
 elif selected_menu == "AI Recommendations":
     st.header("Rekomendasi AI")
