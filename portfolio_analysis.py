@@ -412,6 +412,134 @@ def compound_interest_projection(principal, monthly_add, years, rate, dividend_y
 def generate_recommendations(portfolio):
     if portfolio is None:
         return
+
+# Di bagian modul "AI Recommendations", tambahkan tab baru
+elif selected_menu == "AI Recommendations":
+    st.header("Rekomendasi AI")
+    
+    if portfolio_df is not None:
+        # Buat tab untuk jenis rekomendasi berbeda
+        tab1, tab2 = st.tabs(["Rekomendasi Portofolio", "Rekomendasi Penambahan Sektor"])
+        
+        with tab1:
+            recommendations = generate_recommendations(portfolio_df)
+            st.dataframe(recommendations.style.applymap(
+                lambda x: 'background-color: lightgreen' if x == 'Beli' else 
+                         ('background-color: salmon' if x == 'Jual' else 'background-color: lightyellow'),
+                subset=['Rekomendasi']
+            ))
+        
+        with tab2:
+            st.subheader("Rekomendasi Penambahan Saham Berdasarkan Sektor")
+            
+            # 1. Identifikasi sektor yang underweight/belum dimiliki
+            # Hitung alokasi sektor saat ini
+            sector_allocation = {}
+            total_value = 0
+            
+            # Dapatkan data fundamental untuk menghitung alokasi sektor
+            for _, row in portfolio_df.iterrows():
+                ticker = row['Ticker']
+                fundamental = get_fundamental_data(ticker)
+                if fundamental and 'Sektor' in fundamental:
+                    sector = fundamental['Sektor']
+                    current_price = yf.Ticker(ticker).history(period='1d')['Close'].iloc[-1]
+                    value = row['Shares'] * current_price
+                    
+                    if sector not in sector_allocation:
+                        sector_allocation[sector] = 0
+                    sector_allocation[sector] += value
+                    total_value += value
+            
+            # Konversi ke persentase
+            for sector in sector_allocation:
+                sector_allocation[sector] = (sector_allocation[sector] / total_value) * 100
+            
+            # Tampilkan alokasi sektor saat ini
+            st.subheader("Alokasi Sektor Saat Ini")
+            st.bar_chart(pd.DataFrame.from_dict(sector_allocation, orient='index', columns=['Alokasi (%)']))
+            
+            # Identifikasi sektor yang belum dimiliki atau underweight
+            # Asumsikan target alokasi minimal 10% per sektor
+            underweight_sectors = []
+            for sector, allocation in sector_allocation.items():
+                if allocation < 10:
+                    underweight_sectors.append(sector)
+            
+            # Sektor yang belum dimiliki
+            all_sectors = ["Financial Services", "Energy", "Consumer Defensive", 
+                          "Healthcare", "Technology", "Basic Materials", 
+                          "Communication Services", "Industrials"]
+            missing_sectors = [s for s in all_sectors if s not in sector_allocation]
+            
+            # Gabungkan sektor yang direkomendasikan
+            recommended_sectors = underweight_sectors + missing_sectors
+            if not recommended_sectors:
+                st.success("Portofolio Anda sudah terdiversifikasi dengan baik di semua sektor utama!")
+                st.stop()
+            
+            st.subheader(f"Sektor yang Direkomendasikan: {', '.join(recommended_sectors)}")
+            
+            # 2. Berikan rekomendasi saham untuk sektor tersebut
+            # Daftar saham unggulan per sektor (bisa diperluas)
+            sector_top_stocks = {
+                "Financial Services": ["BBRI.JK", "BMRI.JK", "BBNI.JK", "BJBR.JK", "BTPN.JK"],
+                "Energy": ["TLKM.JK", "EXCL.JK", "PGAS.JK", "ADRO.JK", "PTBA.JK"],
+                "Consumer Defensive": ["ICBP.JK", "UNVR.JK", "MYOR.JK", "ULTJ.JK", "WIKA.JK"],
+                "Healthcare": ["SILO.JK", "KLBF.JK", "DVLA.JK", "KAEF.JK"],
+                "Technology": ["GOTO.JK", "BBHI.JK", "DMMX.JK", "MTEL.JK"],
+                "Basic Materials": ["ANTM.JK", "INCO.JK", "SMBR.JK", "ADMR.JK"],
+                "Communication Services": ["EXCL.JK", "ISAT.JK", "FREN.JK"],
+                "Industrials": ["ASII.JK", "GGRM.JK", "INCO.JK", "TKIM.JK"]
+            }
+            
+            # Ambil data fundamental untuk saham yang direkomendasikan
+            recommendations = []
+            for sector in recommended_sectors:
+                if sector in sector_top_stocks:
+                    for ticker in sector_top_stocks[sector]:
+                        # Skip jika sudah ada di portofolio
+                        if ticker in portfolio_df['Ticker'].values:
+                            continue
+                            
+                        fundamental = get_fundamental_data(ticker)
+                        if fundamental:
+                            # Pastikan memiliki data yang diperlukan
+                            if fundamental.get('PER') and fundamental.get('Dividend Yield') and fundamental.get('ROE'):
+                                recommendations.append({
+                                    'Sektor': sector,
+                                    'Kode Saham': ticker,
+                                    'PER': fundamental['PER'],
+                                    'Dividend Yield (%)': fundamental.get('Dividend Yield', 0) * 100,
+                                    'ROE (%)': fundamental.get('ROE', 0) * 100,
+                                    'Market Cap': format_currency_idr(fundamental.get('Market Cap', 0))
+                                })
+            
+            if recommendations:
+                df_rec = pd.DataFrame(recommendations)
+                
+                # Urutkan berdasarkan valuasi menarik (PER rendah) dan dividen tinggi
+                df_rec = df_rec.sort_values(by=['PER', 'Dividend Yield (%)'], ascending=[True, False])
+                
+                st.subheader("Rekomendasi Saham Berdasarkan Valuasi & Dividen")
+                st.dataframe(df_rec)
+                
+                # Berikan penjelasan analisis
+                st.subheader("Analisis Rekomendasi")
+                st.write("""
+                **Kriteria seleksi:**
+                - Saham dari sektor yang underweight/belum dimiliki
+                - PER rendah (valuasi menarik)
+                - Dividend Yield tinggi (potensi penghasilan pasif)
+                - ROE tinggi (efisiensi penggunaan modal)
+                
+                **Cara menggunakan rekomendasi:**
+                1. Pilih saham dengan PER < 15 dan Dividend Yield > 3% sebagai prioritas
+                2. Pertimbangkan diversifikasi ke beberapa sektor
+                3. Gunakan fitur What-If Simulation untuk menguji dampaknya pada portofolio
+                """)
+            else:
+                st.warning("Tidak ditemukan rekomendasi saham untuk sektor yang dipilih")
     
     recommendations = []
     for _, row in portfolio.iterrows():
