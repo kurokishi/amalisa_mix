@@ -413,29 +413,29 @@ def generate_recommendations(portfolio):
     if portfolio is None:
         return
 
-# Di bagian modul "AI Recommendations", tambahkan tab baru
-elif selected_menu == "AI Recommendations":
-    st.header("Rekomendasi AI")
+    # Di bagian modul "AI Recommendations", tambahkan tab baru
+      elif selected_menu == "AI Recommendations":
+        st.header("Rekomendasi AI")
     
-    if portfolio_df is not None:
-        # Buat tab untuk jenis rekomendasi berbeda
-        tab1, tab2 = st.tabs(["Rekomendasi Portofolio", "Rekomendasi Penambahan Sektor"])
+         if portfolio_df is not None:
+           # Buat tab untuk jenis rekomendasi berbeda
+             tab1, tab2 = st.tabs(["Rekomendasi Portofolio", "Rekomendasi Penambahan Sektor"])
         
-        with tab1:
-            recommendations = generate_recommendations(portfolio_df)
-            st.dataframe(recommendations.style.applymap(
-                lambda x: 'background-color: lightgreen' if x == 'Beli' else 
+               with tab1:
+                 recommendations = generate_recommendations(portfolio_df)
+                 st.dataframe(recommendations.style.applymap(
+                    lambda x: 'background-color: lightgreen' if x == 'Beli' else 
                          ('background-color: salmon' if x == 'Jual' else 'background-color: lightyellow'),
-                subset=['Rekomendasi']
-            ))
+                       subset=['Rekomendasi']
+                       ))
         
-        with tab2:
-            st.subheader("Rekomendasi Penambahan Saham Berdasarkan Sektor")
+              with tab2:
+                st.subheader("Rekomendasi Penambahan Saham Berdasarkan Sektor")
             
-            # 1. Identifikasi sektor yang underweight/belum dimiliki
-            # Hitung alokasi sektor saat ini
-            sector_allocation = {}
-            total_value = 0
+               # 1. Identifikasi sektor yang underweight/belum dimiliki
+               # Hitung alokasi sektor saat ini
+                sector_allocation = {}
+                total_value = 0
             
             # Dapatkan data fundamental untuk menghitung alokasi sektor
             for _, row in portfolio_df.iterrows():
@@ -613,7 +613,7 @@ elif selected_menu == "Price Prediction":
             
             for model_name, pred in results.items():
                 if pred is not None:
-                    pred.plot(x='Date', y='price', ax=ax, label=f'Prediksi {model_name}')
+                   # pred.plot(x='Date', y='price', ax=ax, label=f'Prediksi {model_name}')
             
             ax.set_title(f"Prediksi Harga {selected_stock}")
             ax.set_xlabel("Tanggal")
