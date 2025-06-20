@@ -136,8 +136,10 @@ st.title("🪙 AI Portfolio Management Dashboard")
 # Sidebar Menu
 with st.sidebar:
     st.header("Menu Navigasi")
+    # Update the menu options to include Risk Analysis
     menu_options = ["Portfolio Analysis", "Price Prediction", "What-If Simulation", 
-                    "AI Recommendations", "Compound Interest", "Fundamental Analysis"]
+                "AI Recommendations", "Compound Interest", "Fundamental Analysis", "Risk Analysis"]  # Added "Risk Analysis"
+
     selected_menu = st.radio("Pilih Modul:", menu_options)
     
     st.divider()
@@ -1087,6 +1089,173 @@ elif selected_menu == "Fundamental Analysis":
                     ax.set_xlabel("Tahun")
                     ax.set_ylabel("Dividen (Rp)")
                     st.pyplot(fig)
+
+# Add Risk Analysis menu option
+elif selected_menu == "Risk Analysis":
+    st.header("Analisis Risiko Portofolio")
+    
+    if portfolio_df is None:
+        st.warning("Silakan upload portofolio terlebih dahulu")
+    else:
+        # Get tickers from portfolio
+        tickers = portfolio_df['Ticker'].tolist()
+        
+        # Set date range (5 years)
+        end_date = datetime.now()
+        start_date = end_date - timedelta(days=5*365)
+        
+        # Download price data for all stocks
+        st.subheader("Mengumpulkan Data Saham...")
+        price_data = {}
+        returns_data = {}
+        
+        for ticker in tickers:
+            try:
+                # Get historical prices
+                stock_data = yf.download(ticker, start=start_date, end=end_date)
+                if not stock_data.empty:
+                    # Calculate daily returns
+                    returns = stock_data['Adj Close'].pct_change().dropna()
+                    price_data[ticker] = stock_data['Adj Close']
+                    returns_data[ticker] = returns
+            except Exception as e:
+                st.error(f"Error retrieving data for {ticker}: {str(e)}")
+        
+        if not price_data:
+            st.error("Tidak ada data yang berhasil diambil. Coba lagi nanti.")
+            st.stop()
+            
+        # Convert to DataFrame
+        prices_df = pd.DataFrame(price_data)
+        returns_df = pd.DataFrame(returns_data)
+        
+        # Calculate portfolio weights
+        portfolio_df['Current Price'] = portfolio_df['Ticker'].apply(
+            lambda x: prices_df[x].iloc[-1] if x in prices_df.columns else 0)
+        portfolio_df['Value'] = portfolio_df['Shares'] * portfolio_df['Current Price']
+        total_value = portfolio_df['Value'].sum()
+        portfolio_df['Weight'] = portfolio_df['Value'] / total_value
+        
+        # Create weights vector
+        weights = portfolio_df.set_index('Ticker')['Weight']
+        
+        # Calculate individual volatilities (annualized)
+        st.subheader("Volatilitas Saham")
+        volatilities = returns_df.std() * np.sqrt(252)  # Annualized
+        volatilities = volatilities.to_frame('Volatilitas Tahunan').sort_values('Volatilitas Tahunan', ascending=False)
+        
+        # Add portfolio weights
+        volatilities['Weight'] = weights
+        
+        # Format for display
+        display_vol = volatilities.copy()
+        display_vol['Volatilitas Tahunan'] = display_vol['Volatilitas Tahunan'].apply(lambda x: f"{x:.2%}")
+        display_vol['Weight'] = display_vol['Weight'].apply(lambda x: f"{x:.2%}")
+        
+        st.dataframe(display_vol)
+        
+        # Portfolio volatility
+        cov_matrix = returns_df.cov() * 252  # Annualized covariance matrix
+        portfolio_volatility = np.sqrt(np.dot(weights.T, np.dot(cov_matrix, weights)))
+        
+        col1, col2 = st.columns(2)
+        col1.metric("Volatilitas Portofolio Tahunan", f"{portfolio_volatility:.2%}")
+        col2.metric("Volatilitas Portofolio Harian", f"{(portfolio_volatility / np.sqrt(252)):.2%}")
+        
+        # Heatmap of correlations
+        st.subheader("Heatmap Korelasi Saham")
+        corr_matrix = returns_df.corr()
+        
+        fig, ax = plt.subplots(figsize=(10, 8))
+        cax = ax.matshow(corr_matrix, cmap='coolwarm')
+        fig.colorbar(cax)
+        
+        # Set tick labels
+        tickers = corr_matrix.columns
+        ax.set_xticks(np.arange(len(tickers)))
+        ax.set_yticks(np.arange(len(tickers)))
+        ax.set_xticklabels(tickers, rotation=45)
+        ax.set_yticklabels(tickers)
+        
+        # Annotate with correlation values
+        for i in range(len(tickers)):
+            for j in range(len(tickers)):
+                ax.text(j, i, f"{corr_matrix.iloc[i, j]:.2f}", 
+                        ha="center", va="center", color="w")
+        
+        st.pyplot(fig)
+        
+        # Value at Risk (VaR) calculation
+        st.subheader("Value at Risk (VaR)")
+        
+        # Calculate portfolio returns
+        portfolio_returns = (returns_df * weights).sum(axis=1)
+        
+        # Historical VaR
+        confidence_level = st.slider("Tingkat Kepercayaan", 90, 99, 95)
+        var_hist = -np.percentile(portfolio_returns, 100 - confidence_level)
+        
+        # Parametric VaR (assuming normal distribution)
+        mean_return = portfolio_returns.mean()
+        var_param = -(mean_return - 1.645 * portfolio_returns.std())
+        
+        col1, col2 = st.columns(2)
+        col1.metric(f"VaR Historis ({confidence_level}%)", f"{var_hist:.2%}")
+        col2.metric("VaR Parametrik (95%)", f"{var_param:.2%}")
+        
+        st.caption("Catatan: VaR menunjukkan potensi kerugian maksimum pada tingkat kepercayaan tertentu")
+        
+        # Beta calculation
+        st.subheader("Beta Saham (Risiko Sistematis)")
+        
+        # Download market index data (Jakarta Composite Index - ^JKSE)
+        try:
+            market_data = yf.download('^JKSE', start=start_date, end=end_date)['Adj Close']
+            market_returns = market_data.pct_change().dropna()
+            
+            # Align dates
+            common_dates = returns_df.index.intersection(market_returns.index)
+            returns_df_aligned = returns_df.loc[common_dates]
+            market_returns_aligned = market_returns.loc[common_dates]
+            
+            # Calculate beta for each stock
+            betas = {}
+            for ticker in returns_df_aligned.columns:
+                cov = np.cov(returns_df_aligned[ticker], market_returns_aligned)
+                beta = cov[0, 1] / cov[1, 1]
+                betas[ticker] = beta
+                
+            betas_df = pd.DataFrame.from_dict(betas, orient='index', columns=['Beta'])
+            betas_df['Weight'] = weights
+            
+            # Format for display
+            display_betas = betas_df.copy()
+            display_betas['Beta'] = display_betas['Beta'].apply(lambda x: f"{x:.2f}")
+            display_betas['Weight'] = display_betas['Weight'].apply(lambda x: f"{x:.2%}")
+            
+            st.dataframe(display_betas.sort_values('Beta', ascending=False))
+            
+            # Calculate portfolio beta
+            portfolio_beta = (betas_df['Beta'] * betas_df['Weight']).sum()
+            st.metric("Beta Portofolio", f"{portfolio_beta:.2f}")
+            
+            # Interpretation
+            st.subheader("Interpretasi Beta")
+            if portfolio_beta < 0.8:
+                st.success("Portofolio Anda relatif defensif (beta < 0.8)")
+                st.write("Portofolio ini cenderung kurang volatil dibanding pasar. "
+                         "Saham-saham defensif biasanya lebih stabil selama penurunan pasar.")
+            elif portfolio_beta > 1.2:
+                st.warning("Portofolio Anda agresif (beta > 1.2)")
+                st.write("Portofolio ini lebih volatil dibanding pasar. "
+                         "Potensi return lebih tinggi, tetapi risiko juga lebih besar.")
+            else:
+                st.info("Portofolio Anda seimbang (beta antara 0.8-1.2)")
+                st.write("Portofolio ini memiliki volatilitas yang sebanding dengan pasar.")
+                
+        except Exception as e:
+            st.error(f"Gagal mengambil data indeks pasar: {str(e)}")
+            st.warning("Beta tidak dapat dihitung tanpa data indeks pasar")
 
 # Simpan histori portofolio
 if portfolio_df is not None and uploaded_file is not None:
