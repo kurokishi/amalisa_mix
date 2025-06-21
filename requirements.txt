@@ -11,3 +11,4 @@ statsmodels
 tensorflow
 prophet
 xgboost
+beautifulsoup4
