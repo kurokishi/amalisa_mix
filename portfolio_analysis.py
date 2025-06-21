@@ -1119,13 +1119,14 @@ elif selected_menu == "Risk Analysis":
             st.error("Tidak ada data yang berhasil diambil. Coba lagi nanti.")
             st.stop()
             
-        # PERBAIKAN DI SINI: Gunakan pd.concat() bukan pd.DataFrame()
+        # Bangun DataFrame dengan benar
         prices_df = pd.concat(price_data.values(), axis=1, keys=price_data.keys())
         returns_df = pd.concat(returns_data.values(), axis=1, keys=returns_data.keys())
         
-        # Calculate portfolio weights
+        # PERBAIKAN DI SINI: Akses kolom yang benar
         portfolio_df['Current Price'] = portfolio_df['Ticker'].apply(
             lambda x: prices_df[x].iloc[-1] if x in prices_df.columns else 0)
+        
         portfolio_df['Value'] = portfolio_df['Shares'] * portfolio_df['Current Price']
         total_value = portfolio_df['Value'].sum()
         portfolio_df['Weight'] = portfolio_df['Value'] / total_value
