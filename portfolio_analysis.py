@@ -1123,9 +1123,9 @@ elif selected_menu == "Risk Analysis":
         prices_df = pd.concat(price_data.values(), axis=1, keys=price_data.keys())
         returns_df = pd.concat(returns_data.values(), axis=1, keys=returns_data.keys())
         
-        # PERBAIKAN DI SINI: Akses kolom yang benar
+        # PERBAIKAN DI SINI: Akses kolom yang benar untuk MultiIndex
         portfolio_df['Current Price'] = portfolio_df['Ticker'].apply(
-            lambda x: prices_df[x].iloc[-1] if x in prices_df.columns else 0)
+            lambda x: prices_df[x].iloc[-1] if x in prices_df.columns.levels[0] else 0)
         
         portfolio_df['Value'] = portfolio_df['Shares'] * portfolio_df['Current Price']
         total_value = portfolio_df['Value'].sum()
@@ -1137,10 +1137,14 @@ elif selected_menu == "Risk Analysis":
         # Calculate individual volatilities (annualized)
         st.subheader("Volatilitas Saham")
         volatilities = returns_df.std() * np.sqrt(252)  # Annualized
-        volatilities = volatilities.to_frame('Volatilitas Tahunan').sort_values('Volatilitas Tahunan', ascending=False)
+        
+        # PERBAIKAN DI SINI: Akses yang benar untuk volatilitas
+        volatilities = volatilities.to_frame('Volatilitas Tahunan').reset_index()
+        volatilities.columns = ['Ticker', 'Volatilitas Tahunan']
+        volatilities = volatilities.sort_values('Volatilitas Tahunan', ascending=False)
         
         # Add portfolio weights
-        volatilities['Weight'] = weights
+        volatilities['Weight'] = volatilities['Ticker'].map(weights)
         
         # Format for display
         display_vol = volatilities.copy()
@@ -1151,7 +1155,10 @@ elif selected_menu == "Risk Analysis":
         
         # Portfolio volatility
         cov_matrix = returns_df.cov() * 252  # Annualized covariance matrix
-        portfolio_volatility = np.sqrt(np.dot(weights.T, np.dot(cov_matrix, weights)))
+        
+        # PERBAIKAN DI SINI: Konversi weights ke array untuk perhitungan
+        weights_array = np.array(weights)
+        portfolio_volatility = np.sqrt(np.dot(weights_array.T, np.dot(cov_matrix, weights_array)))
         
         col1, col2 = st.columns(2)
         col1.metric("Volatilitas Portofolio Tahunan", f"{portfolio_volatility:.2%}")
@@ -1166,15 +1173,14 @@ elif selected_menu == "Risk Analysis":
         fig.colorbar(cax)
         
         # Set tick labels
-        tickers = corr_matrix.columns
-        ax.set_xticks(np.arange(len(tickers)))
-        ax.set_yticks(np.arange(len(tickers)))
-        ax.set_xticklabels(tickers, rotation=45)
-        ax.set_yticklabels(tickers)
+        ax.set_xticks(np.arange(len(corr_matrix.columns)))
+        ax.set_yticks(np.arange(len(corr_matrix.columns)))
+        ax.set_xticklabels(corr_matrix.columns, rotation=45)
+        ax.set_yticklabels(corr_matrix.columns)
         
         # Annotate with correlation values
-        for i in range(len(tickers)):
-            for j in range(len(tickers)):
+        for i in range(len(corr_matrix.columns)):
+            for j in range(len(corr_matrix.columns)):
                 ax.text(j, i, f"{corr_matrix.iloc[i, j]:.2f}", 
                         ha="center", va="center", color="w")
         
@@ -1184,7 +1190,7 @@ elif selected_menu == "Risk Analysis":
         st.subheader("Value at Risk (VaR)")
         
         # Calculate portfolio returns
-        portfolio_returns = (returns_df * weights).sum(axis=1)
+        portfolio_returns = (returns_df * weights_array).sum(axis=1)
         
         # Historical VaR
         confidence_level = st.slider("Tingkat Kepercayaan", 90, 99, 95)
@@ -1215,8 +1221,9 @@ elif selected_menu == "Risk Analysis":
             
             # Calculate beta for each stock
             betas = {}
-            for ticker in returns_df_aligned.columns:
-                cov = np.cov(returns_df_aligned[ticker], market_returns_aligned)
+            for ticker in returns_df_aligned.columns.levels[0]:
+                stock_returns = returns_df_aligned[ticker].values
+                cov = np.cov(stock_returns, market_returns_aligned)
                 beta = cov[0, 1] / cov[1, 1]
                 betas[ticker] = beta
                 
