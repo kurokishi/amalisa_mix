@@ -1107,7 +1107,6 @@ elif selected_menu == "Risk Analysis":
         
         for ticker in tickers:
             try:
-                # PERBAIKAN: Tambah auto_adjust=False
                 stock_data = yf.download(ticker, start=start_date, end=end_date, auto_adjust=False)
                 if not stock_data.empty:
                     returns = stock_data['Adj Close'].pct_change().dropna()
@@ -1120,12 +1119,9 @@ elif selected_menu == "Risk Analysis":
             st.error("Tidak ada data yang berhasil diambil. Coba lagi nanti.")
             st.stop()
             
-        # prices_df = pd.DataFrame(price_data)
-        # returns_df = pd.DataFrame(returns_data)
-            
-        # Convert to DataFrame
-        prices_df = pd.DataFrame(price_data)
-        returns_df = pd.DataFrame(returns_data)
+        # PERBAIKAN DI SINI: Gunakan pd.concat() bukan pd.DataFrame()
+        prices_df = pd.concat(price_data.values(), axis=1, keys=price_data.keys())
+        returns_df = pd.concat(returns_data.values(), axis=1, keys=returns_data.keys())
         
         # Calculate portfolio weights
         portfolio_df['Current Price'] = portfolio_df['Ticker'].apply(
