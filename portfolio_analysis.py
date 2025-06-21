@@ -1124,8 +1124,12 @@ elif selected_menu == "Risk Analysis":
         returns_df = pd.concat(returns_data.values(), axis=1, keys=returns_data.keys())
         
         # PERBAIKAN DI SINI: Akses kolom yang benar untuk MultiIndex
+        # Ganti lambda function untuk ambil kolom spesifik (misal: 'Close')
         portfolio_df['Current Price'] = portfolio_df['Ticker'].apply(
-            lambda x: prices_df[x].iloc[-1] if x in prices_df.columns.levels[0] else 0)
+               lambda x: prices_df[(x, 'Close')].iloc[-1]  # Akses kolom 'Close' secara eksplisit
+               if (x, 'Close') in prices_df.columns 
+               else np.nan
+        )
         
         portfolio_df['Value'] = portfolio_df['Shares'] * portfolio_df['Current Price']
         total_value = portfolio_df['Value'].sum()
