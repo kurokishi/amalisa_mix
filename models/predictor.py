@@ -39,12 +39,19 @@ def prophet_prediction(df, days):
 def lstm_prediction(df, days):
     scaler = MinMaxScaler()
     scaled_data = scaler.fit_transform(df['price'].values.reshape(-1,1))
+
+    if len(scaled_data) < 61:
+        st.error("Data historis terlalu pendek untuk prediksi LSTM (minimal 61 hari).")
+        return None
+
     x_train, y_train = [], []
     seq_len = 60
     for i in range(seq_len, len(scaled_data)):
         x_train.append(scaled_data[i-seq_len:i, 0])
         y_train.append(scaled_data[i, 0])
+    
     x_train = np.array(x_train).reshape(-1, seq_len, 1)
+    y_train = np.array(y_train)
 
     model = Sequential()
     model.add(LSTM(50, return_sequences=True, input_shape=(seq_len, 1)))
