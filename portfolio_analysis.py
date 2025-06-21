@@ -1240,6 +1240,9 @@ elif selected_menu == "Risk Analysis":
             'Weight': volatilities['Weight']
         })
         
+        # PERBAIKAN: Bersihkan nilai NaN di kolom Weight
+        risk_return_df['Weight'] = risk_return_df['Weight'].fillna(0)
+        
         # Buat scatter plot interaktif
         fig = px.scatter(
             risk_return_df, 
