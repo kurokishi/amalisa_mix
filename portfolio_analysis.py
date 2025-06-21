@@ -504,8 +504,7 @@ elif selected_menu == "Price Prediction":
                 y=hist_data['price'],
                 mode='lines',
                 name='Historis',
-                line=dict(color='blue')
-            )
+                line=dict(color='blue'))
             
             for model_name, pred in results.items():
                 if pred is not None:
