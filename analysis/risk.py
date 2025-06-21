@@ -30,6 +30,16 @@ def show_risk_analysis(portfolio_df):
     st.plotly_chart(fig, use_container_width=True)
 
     st.subheader("Value at Risk (VaR) 95% Confidence")
-    var_df = df_returns.apply(lambda x: np.percentile(x, 5) * row['Shares'] * x.name for _, row in portfolio_df.iterrows())
+
+    var_results = []
+    for _, row in portfolio_df.iterrows():
+        ticker = row['Ticker']
+        if ticker in df_returns.columns:
+            percentile_loss = np.percentile(df_returns[ticker], 5)
+            var_nominal = percentile_loss * row['Shares'] * row['Avg Price']
+            var_results.append({'Saham': row['Stock'], 'Ticker': ticker, 'VaR (95%)': round(var_nominal, 2)})
+
+    df_var = pd.DataFrame(var_results)
     st.write("(Simulasi kasar berdasarkan distribusi historis)")
-    st.dataframe(var_df.T if isinstance(var_df, pd.DataFrame) else var_df)
+    st.dataframe(df_var)
+
