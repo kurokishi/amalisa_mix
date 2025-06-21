@@ -468,35 +468,8 @@ if selected_menu == "Portfolio Analysis":
     visualize_portfolio(portfolio_df)
     
 elif selected_menu == "Price Prediction":
-    st.subheader("Prediksi Harga")
-    fig = go.Figure()
+    st.header("Prediksi Harga Saham")
     
-    # Tambahkan data historis
-    fig.add_trace(go.Scatter(
-        x=hist_data['Date'],
-        y=hist_data['price'],
-        mode='lines',
-        name='Historis',
-        line=dict(color='blue')
-    ))
-        for model_name, pred in results.items():
-          if pred is not None:
-             fig.add_trace(go.Scatter(
-                 x=pred['Date'],
-                 y=pred['price'],
-                 mode='lines',
-                 name=f'Prediksi {model_name}'
-        ))
-    
-    fig.update_layout(
-        title=f"Prediksi Harga {selected_stock}",
-        xaxis_title="Tanggal",
-        yaxis_title="Harga (Rp)",
-        legend_title="Model",
-        hovermode="x unified"
-    )
-    st.plotly_chart(fig, use_container_width=True)
-
     if portfolio_df is not None:
         selected_stock = st.selectbox("Pilih Saham", portfolio_df['Stock'])
         selected_row = portfolio_df[portfolio_df['Stock'] == selected_stock].iloc[0]
@@ -522,19 +495,35 @@ elif selected_menu == "Price Prediction":
             if model_option in ["XGBoost", "Ensemble"]:
                 results['XGBoost'] = xgboost_prediction(hist_data, prediction_days)
             
-            # Visualisasi hasil
+            # Visualisasi hasil dengan Plotly
             st.subheader("Prediksi Harga")
-            fig, ax = plt.subplots(figsize=(12, 6))
-            hist_data.plot(x='Date', y='price', ax=ax, label='Historis')
+            fig = go.Figure()
+            # Tambahkan data historis
+            fig.add_trace(go.Scatter(
+                x=hist_data['Date'],
+                y=hist_data['price'],
+                mode='lines',
+                name='Historis',
+                line=dict(color='blue')
+            )
             
             for model_name, pred in results.items():
                 if pred is not None:
-                    pred.plot(x='Date', y='price', ax=ax, label=f'Prediksi {model_name}')
+                    fig.add_trace(go.Scatter(
+                        x=pred['Date'],
+                        y=pred['price'],
+                        mode='lines',
+                        name=f'Prediksi {model_name}'
+                    ))
             
-            ax.set_title(f"Prediksi Harga {selected_stock}")
-            ax.set_xlabel("Tanggal")
-            ax.set_ylabel("Harga (Rp)")
-            st.pyplot(fig)
+            fig.update_layout(
+                title=f"Prediksi Harga {selected_stock}",
+                xaxis_title="Tanggal",
+                yaxis_title="Harga (Rp)",
+                legend_title="Model",
+                hovermode="x unified"
+            )
+            st.plotly_chart(fig, use_container_width=True)
             
             # Evaluasi model
             if model_option != "Ensemble":
@@ -1168,9 +1157,9 @@ elif selected_menu == "Risk Analysis":
         
         #######################################################
         # TAMBAHKAN DI SINI: Validasi struktur data
-        st.write("Struktur kolom prices_df:", prices_df.columns)
-        st.write("Level kolom prices_df:", prices_df.columns.nlevels)
-        st.write("Contoh nilai kolom:", prices_df.columns[:5])  # 5 kolom pertama
+        #st.write("Struktur kolom prices_df:", prices_df.columns)
+        #st.write("Level kolom prices_df:", prices_df.columns.nlevels)
+        #st.write("Contoh nilai kolom:", prices_df.columns[:5])  # 5 kolom pertama
         #######################################################
         
         # PERBAIKAN DI SINI: Akses kolom yang benar untuk MultiIndex
@@ -1238,38 +1227,39 @@ elif selected_menu == "Risk Analysis":
         
         st.pyplot(fig)
 
-       st.subheader("Risiko vs Return Saham")
-    
-       # Hitung return tahunan rata-rata
-       annual_returns = returns_df.mean() * 252
-    
-       # Buat DataFrame untuk plot
-       risk_return_df = pd.DataFrame({
-          'Ticker': volatilities['Ticker'],
-          'Volatility': volatilities['Volatilitas Tahunan'],
-          'Return': annual_returns.values,
-          'Weight': volatilities['Weight']
-       })
-    
-     # Buat scatter plot interaktif
-     fig = px.scatter(
-         risk_return_df, 
-         x='Volatility', 
-         y='Return',
-         text='Ticker',
-         size='Weight',
-         color='Ticker',
-         title='Risiko vs Return Saham',
-         hover_data=['Weight']
-     )
-    
-    # Tambahkan garis referensi
-    fig.add_hline(y=0, line_dash="dash", line_color="red")
-    fig.update_layout(
-        xaxis_title='Volatilitas Tahunan',
-        yaxis_title='Return Tahunan Rata-Rata'
-    )
-    st.plotly_chart(fig, use_container_width=True)
+        st.subheader("Risiko vs Return Saham")
+        
+        # Hitung return tahunan rata-rata
+        annual_returns = returns_df.mean() * 252
+        
+        # Buat DataFrame untuk plot
+        risk_return_df = pd.DataFrame({
+            'Ticker': volatilities['Ticker'],
+            'Volatility': volatilities['Volatilitas Tahunan'],
+            'Return': annual_returns.values,
+            'Weight': volatilities['Weight']
+        })
+        
+        # Buat scatter plot interaktif
+        fig = px.scatter(
+            risk_return_df, 
+            x='Volatility', 
+            y='Return',
+            text='Ticker',
+            size='Weight',
+            color='Ticker',
+            title='Risiko vs Return Saham',
+            hover_data=['Weight']
+        )
+        
+        # Tambahkan garis referensi
+        fig.add_hline(y=0, line_dash="dash", line_color="red")
+        fig.update_layout(
+            xaxis_title='Volatilitas Tahunan',
+            yaxis_title='Return Tahunan Rata-Rata'
+        )
+        st.plotly_chart(fig, use_container_width=True)
+
         # Value at Risk (VaR) calculation
         st.subheader("Value at Risk (VaR)")
         
