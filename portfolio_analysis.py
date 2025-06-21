@@ -1123,12 +1123,18 @@ elif selected_menu == "Risk Analysis":
         prices_df = pd.concat(price_data.values(), axis=1, keys=price_data.keys())
         returns_df = pd.concat(returns_data.values(), axis=1, keys=returns_data.keys())
         
+        #######################################################
+        # TAMBAHKAN DI SINI: Validasi struktur data
+        st.write("Struktur kolom prices_df:", prices_df.columns)
+        st.write("Level kolom prices_df:", prices_df.columns.nlevels)
+        st.write("Contoh nilai kolom:", prices_df.columns[:5])  # 5 kolom pertama
+        #######################################################
+        
         # PERBAIKAN DI SINI: Akses kolom yang benar untuk MultiIndex
-        # Ganti lambda function untuk ambil kolom spesifik (misal: 'Close')
         portfolio_df['Current Price'] = portfolio_df['Ticker'].apply(
-               lambda x: prices_df[(x, 'Close')].iloc[-1]  # Akses kolom 'Close' secara eksplisit
-               if (x, 'Close') in prices_df.columns 
-               else np.nan
+            lambda x: prices_df[(x, 'Close')].iloc[-1]  # Akses kolom 'Close' secara eksplisit
+            if (x, 'Close') in prices_df.columns 
+            else np.nan
         )
         
         portfolio_df['Value'] = portfolio_df['Shares'] * portfolio_df['Current Price']
@@ -1144,7 +1150,7 @@ elif selected_menu == "Risk Analysis":
         
         # PERBAIKAN DI SINI: Akses yang benar untuk volatilitas
         volatilities = volatilities.to_frame('Volatilitas Tahunan').reset_index()
-        volatilities.columns = ['Ticker', 'Volatilitas Tahunan']
+        volatilities = volatilities.rename(columns={'index': 'Ticker'})
         volatilities = volatilities.sort_values('Volatilitas Tahunan', ascending=False)
         
         # Add portfolio weights
