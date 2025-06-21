@@ -1097,24 +1097,19 @@ elif selected_menu == "Risk Analysis":
     if portfolio_df is None:
         st.warning("Silakan upload portofolio terlebih dahulu")
     else:
-        # Get tickers from portfolio
         tickers = portfolio_df['Ticker'].tolist()
-        
-        # Set date range (5 years)
         end_date = datetime.now()
         start_date = end_date - timedelta(days=5*365)
         
-        # Download price data for all stocks
         st.subheader("Mengumpulkan Data Saham...")
         price_data = {}
         returns_data = {}
         
         for ticker in tickers:
             try:
-                # Get historical prices
-                stock_data = yf.download(ticker, start=start_date, end=end_date)
+                # PERBAIKAN: Tambah auto_adjust=False
+                stock_data = yf.download(ticker, start=start_date, end=end_date, auto_adjust=False)
                 if not stock_data.empty:
-                    # Calculate daily returns
                     returns = stock_data['Adj Close'].pct_change().dropna()
                     price_data[ticker] = stock_data['Adj Close']
                     returns_data[ticker] = returns
@@ -1124,6 +1119,9 @@ elif selected_menu == "Risk Analysis":
         if not price_data:
             st.error("Tidak ada data yang berhasil diambil. Coba lagi nanti.")
             st.stop()
+            
+        # prices_df = pd.DataFrame(price_data)
+        # returns_df = pd.DataFrame(returns_data)
             
         # Convert to DataFrame
         prices_df = pd.DataFrame(price_data)
@@ -1210,7 +1208,7 @@ elif selected_menu == "Risk Analysis":
         
         # Download market index data (Jakarta Composite Index - ^JKSE)
         try:
-            market_data = yf.download('^JKSE', start=start_date, end=end_date)['Adj Close']
+            market_data = yf.download('^JKSE', start=start_date, end=end_date, auto_adjust=False)['Adj Close']
             market_returns = market_data.pct_change().dropna()
             
             # Align dates
