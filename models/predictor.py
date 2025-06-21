@@ -9,6 +9,9 @@ from tensorflow.keras.layers import LSTM, Dense
 import xgboost as xgb
 import plotly.graph_objects as go
 import yfinance as yf
+from models.advanced_lstm import train_advanced_lstm
+from models.ensemble import simple_average_ensemble
+from models.evaluation import evaluate_prediction
 
 # Fungsi ambil data harga
 @st.cache_data
@@ -34,7 +37,7 @@ def prophet_prediction(df, days):
     forecast = model.predict(future)
     return forecast[['ds', 'yhat']].rename(columns={'ds': 'Date', 'yhat': 'price'})
 
-# LSTM
+# LSTM Sederhana
 
 def lstm_prediction(df, days):
     scaler = MinMaxScaler()
@@ -125,14 +128,26 @@ def show_price_prediction(portfolio_df, prediction_days):
 
     st.line_chart(hist_data.set_index('Date'))
 
-    model_option = st.selectbox("Pilih Model", ["Prophet", "LSTM", "XGBoost", "Ensemble"])
+    model_option = st.selectbox("Pilih Model", ["Prophet", "LSTM", "Advanced LSTM", "XGBoost", "Ensemble"])
     results = {}
+    evaluations = {}
+
     if model_option in ["Prophet", "Ensemble"]:
-        results['Prophet'] = prophet_prediction(hist_data, prediction_days)
+        prophet = prophet_prediction(hist_data, prediction_days)
+        results['Prophet'] = prophet
     if model_option in ["LSTM", "Ensemble"]:
-        results['LSTM'] = lstm_prediction(hist_data, prediction_days)
+        lstm = lstm_prediction(hist_data, prediction_days)
+        if lstm is not None:
+            results['LSTM'] = lstm
+    if model_option in ["Advanced LSTM", "Ensemble"]:
+        adv_lstm, mae, rmse = train_advanced_lstm(hist_data, prediction_days)
+        if adv_lstm is not None:
+            results['Advanced LSTM'] = adv_lstm
+            evaluations['Advanced LSTM'] = 1 / (rmse + 1e-6)
     if model_option in ["XGBoost", "Ensemble"]:
-        results['XGBoost'] = xgboost_prediction(hist_data, prediction_days)
+        xgb_pred = xgboost_prediction(hist_data, prediction_days)
+        if xgb_pred is not None:
+            results['XGBoost'] = xgb_pred
 
     st.subheader("Hasil Prediksi")
     fig = go.Figure()
@@ -140,5 +155,14 @@ def show_price_prediction(portfolio_df, prediction_days):
     for name, df_pred in results.items():
         if df_pred is not None:
             fig.add_trace(go.Scatter(x=df_pred['Date'], y=df_pred['price'], mode='lines', name=f"{name}"))
+
+    if model_option == "Ensemble" and len(results) >= 2:
+        from models.ensemble import simple_average_ensemble, weighted_average_ensemble
+        ensemble_df = simple_average_ensemble(results)
+        fig.add_trace(go.Scatter(x=ensemble_df['Date'], y=ensemble_df['price'], mode='lines', name='Simple Ensemble'))
+        if evaluations:
+            weighted_df = weighted_average_ensemble(results, evaluations)
+            fig.add_trace(go.Scatter(x=weighted_df['Date'], y=weighted_df['price'], mode='lines', name='Weighted Ensemble'))
+
     fig.update_layout(title=f"Prediksi Harga Saham {stock} ({ticker})", xaxis_title="Tanggal", yaxis_title="Harga")
     st.plotly_chart(fig, use_container_width=True)
