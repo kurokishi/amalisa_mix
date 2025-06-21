@@ -1,0 +1,28 @@
+/project_root/
+│
+├── main.py                     # File utama Streamlit (frontend dan routing menu)
+├── config.py                   # Konfigurasi global (theme, page settings, dll)
+│
+├── data/
+│   ├── fetcher.py              # Ambil data harga, fundamental, ESG, berita
+│   ├── processor.py            # Proses file Excel/CSV, hitung nilai portofolio
+│
+├── models/
+│   ├── prophet_model.py        # Prediksi harga dengan Prophet
+│   ├── lstm_model.py           # Prediksi harga dengan LSTM
+│   ├── xgboost_model.py        # Prediksi harga dengan XGBoost
+│
+├── analysis/
+│   ├── portfolio.py            # Visualisasi portofolio
+│   ├── what_if.py              # Simulasi penambahan saham & average down
+│   ├── compound.py             # Proyeksi bunga majemuk
+│   ├── recommendations.py      # Rekomendasi AI dan sektor
+│   ├── risk.py                 # Analisis risiko: beta, VaR, korelasi
+│   ├── fundamental.py          # Analisis valuasi & dividen
+│   ├── esg.py                  # Visualisasi ESG & green score
+│   ├── sentiment.py            # Analisis berita & sentimen
+│
+└── utils/
+    ├── formatter.py            # Format angka, tanggal, currency
+    └── logger.py               # Logging error/debug
+
