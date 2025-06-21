@@ -12,6 +12,7 @@ from analysis.fundamental import show_fundamental_analysis
 from analysis.risk import show_risk_analysis
 from analysis.esg import show_esg_analysis
 from analysis.sentiment import show_sentiment_analysis
+from analysis.dca import show_dca_simulation
 from models.predictor import show_price_prediction
 
 # Konfigurasi halaman
@@ -23,8 +24,8 @@ with st.sidebar:
     st.header("Menu Navigasi")
     menu_options = [
         "Portfolio Analysis", "Price Prediction", "What-If Simulation", 
-        "AI Recommendations", "Compound Interest", "Fundamental Analysis", 
-        "Risk Analysis", "ESG & Berita"]
+        "AI Recommendations", "Compound Interest", "DCA Simulation",
+        "Fundamental Analysis", "Risk Analysis", "ESG & Berita"]
     selected_menu = st.radio("Pilih Modul:", menu_options)
 
     st.divider()
@@ -55,6 +56,9 @@ elif selected_menu == "AI Recommendations":
 
 elif selected_menu == "Compound Interest":
     show_compound_projection(portfolio_df)
+
+elif selected_menu == "DCA Simulation":
+    show_dca_simulation(portfolio_df)
 
 elif selected_menu == "Fundamental Analysis":
     show_fundamental_analysis(portfolio_df)
