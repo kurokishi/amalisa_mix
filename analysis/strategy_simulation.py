@@ -10,10 +10,14 @@ def simulate_dca(prices, dca_nominal):
     total_shares = 0
     total_invested = 0
     for price in prices:
-        if price > 0:
-            shares = dca_nominal / price
-            total_shares += shares
-            total_invested += dca_nominal
+        try:
+            price = float(price)
+            if price > 0:
+                shares = dca_nominal / price
+                total_shares += shares
+                total_invested += dca_nominal
+        except:
+            continue
     return total_shares, total_invested
 
 
