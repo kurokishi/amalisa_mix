@@ -166,8 +166,13 @@ def show_strategy_simulation(portfolio_df):
 
         # Tangani harga
         try:
-            # Pastikan kita mendapatkan Series numerik
+            # PERBAIKAN: Pastikan kita mendapatkan Series numerik
+            # Gunakan squeeze() untuk mengubah DataFrame dengan satu kolom menjadi Series
             prices = hist['Close'].dropna()
+            
+            # Jika masih DataFrame, ambil kolom pertama sebagai Series
+            if isinstance(prices, pd.DataFrame):
+                prices = prices.iloc[:, 0]
             
             if prices.empty:
                 st.error("⛔ Tidak ada data harga yang valid")
@@ -208,8 +213,16 @@ def show_strategy_simulation(portfolio_df):
 
         # 2. Strategi: DCA
         with st.spinner("🔄 Menghitung strategi DCA..."):
-            # PERBAIKAN UTAMA: Gunakan prices yang sudah dikonversi ke float
-            saham_dari_dca, total_invested_dca = simulate_dca(prices.tolist(), dca_nominal)
+            # PERBAIKAN UTAMA: Konversi prices menjadi list numerik
+            # Pastikan prices adalah Series atau array
+            if isinstance(prices, pd.Series):
+                prices_list = prices.tolist()
+            elif isinstance(prices, pd.DataFrame):
+                prices_list = prices.values.flatten().tolist()
+            else:
+                prices_list = list(prices)
+                
+            saham_dari_dca, total_invested_dca = simulate_dca(prices_list, dca_nominal)
             
             total_saham_dca = saham_awal + saham_dari_dca
             nilai_dca = total_saham_dca * harga_akhir
