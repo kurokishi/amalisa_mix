@@ -26,18 +26,30 @@ def generate_fake_sentiment():
 
 
 def show_sentiment_analysis(portfolio_df):
-    st.header("Analisis Sentimen Berita")
+    st.header("📰 Analisis Sentimen Berita Saham")
 
     if portfolio_df is None or portfolio_df.empty:
-        st.warning("Silakan upload portofolio terlebih dahulu")
+        st.warning("Silakan upload portofolio terlebih dahulu.")
         return
 
-    selected_stock = st.selectbox("Pilih Saham untuk Analisis Sentimen", portfolio_df['Stock'])
+    selected_stock = st.selectbox("📌 Pilih Saham untuk Analisis Sentimen", portfolio_df['Stock'])
 
-    st.subheader(f"Berita Terkait: {selected_stock}")
+    st.markdown(f"Berikut adalah ringkasan berita terkini yang dikaitkan dengan saham **{selected_stock}**.")
     news_df = generate_fake_sentiment()
-    st.dataframe(news_df.style.applymap(
-        lambda x: 'background-color: lightgreen' if x == 'Positif' else (
-                  'background-color: lightcoral' if x == 'Negatif' else 'background-color: lightyellow'),
-        subset=['Sentimen']
-    ))
+
+    with st.expander("🗞️ Tabel Berita & Sentimen"):
+        st.dataframe(
+            news_df.style.applymap(
+                lambda x: 'background-color: lightgreen' if x == 'Positif' else (
+                          'background-color: lightcoral' if x == 'Negatif' else 'background-color: lightyellow'),
+                subset=['Sentimen']
+            ),
+            use_container_width=True
+        )
+
+    summary = news_df['Sentimen'].value_counts().to_dict()
+    st.subheader("🔍 Ringkasan Sentimen")
+    col1, col2, col3 = st.columns(3)
+    col1.metric("🟢 Positif", summary.get("Positif", 0))
+    col2.metric("🟡 Netral", summary.get("Netral", 0))
+    col3.metric("🔴 Negatif", summary.get("Negatif", 0))
