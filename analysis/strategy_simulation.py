@@ -5,17 +5,31 @@ import plotly.express as px
 from datetime import datetime, timedelta
 import time
 import traceback
+import warnings
 from utils.formatter import format_currency_idr
+
+# Suppress FutureWarnings dari yfinance
+warnings.simplefilter(action='ignore', category=FutureWarning)
 
 def safe_yfinance_download(ticker, start_date, max_retries=3):
     for i in range(max_retries):
         try:
-            data = yf.download(ticker, start=start_date, interval="1mo", progress=False)
+            # Tambahkan penanganan khusus untuk saham Indonesia
+            clean_ticker = ticker.replace(".JK.JK", ".JK").replace(".JK", "") + ".JK"
+            
+            # Gunakan auto_adjust=True untuk menghindari warning
+            data = yf.download(
+                clean_ticker, 
+                start=start_date, 
+                interval="1mo", 
+                progress=False,
+                auto_adjust=True  # Tambahkan parameter ini
+            )
             if not data.empty:
                 return data
         except Exception as e:
             st.warning(f"⚠️ Percobaan {i+1}/{max_retries} gagal: {str(e)}")
-            time.sleep(2)  # Tunggu sebelum coba lagi
+            time.sleep(2)
     return pd.DataFrame()
 
 def simulate_dca(prices, dca_nominal):
@@ -44,7 +58,9 @@ def safe_dividend_calculation(ticker, base_shares, price_history):
         start_time = time.time()
         timeout = 20  # detik
         
-        stock = yf.Ticker(ticker)
+        # Bersihkan ticker
+        clean_ticker = ticker.replace(".JK.JK", ".JK").replace(".JK", "") + ".JK"
+        stock = yf.Ticker(clean_ticker)
         
         # Dapatkan tanggal mulai dan akhir dengan aman
         if price_history.empty:
@@ -56,7 +72,7 @@ def safe_dividend_calculation(ticker, base_shares, price_history):
         # Dapatkan dividen dengan penanganan error
         try:
             dividends = stock.dividends
-            if dividends is None:
+            if dividends is None or dividends.empty:
                 return base_shares
                 
             dividends = dividends.loc[start_date:end_date]
@@ -67,7 +83,6 @@ def safe_dividend_calculation(ticker, base_shares, price_history):
         for date, div_per_share in dividends.items():
             # Cek timeout
             if time.time() - start_time > timeout:
-                st.warning("⏱️ Timeout saat menghitung dividen")
                 return total_shares
                 
             if date in price_history.index:
@@ -107,8 +122,11 @@ def show_strategy_simulation(portfolio_df):
             return
             
         row = row.iloc[0]
-        ticker = row['Ticker'] + ".JK"  # Tambahkan .JK untuk saham Indonesia
+        ticker = row['Ticker']  # JANGAN tambahkan .JK di sini
         
+        # Log untuk debugging
+        st.session_state.debug_info = f"Ticker yang dipilih: {ticker}"
+
         durasi_tahun = st.slider("⏳ Durasi Simulasi (tahun)", 1, 10, 5)
         dca_nominal = st.number_input("💸 Nominal DCA / Bulan (Rp)", min_value=10000, step=10000, value=500000)
         saham_awal_input = st.number_input("📦 Jumlah Saham Awal yang Dimiliki", min_value=0.0, step=0.01, value=0.0)
@@ -129,7 +147,7 @@ def show_strategy_simulation(portfolio_df):
             return
             
         if hist.empty:
-            st.error("⛔ Data historis kosong")
+            st.error(f"⛔ Data historis kosong untuk ticker: {ticker}")
             return
             
         if 'Close' not in hist.columns:
@@ -225,4 +243,7 @@ def show_strategy_simulation(portfolio_df):
 
     except Exception as e:
         st.error(f"Terjadi kesalahan fatal: {str(e)}")
+        # Tampilkan info debug jika ada
+        if 'debug_info' in st.session_state:
+            st.error(f"Debug info: {st.session_state.debug_info}")
         st.text(traceback.format_exc())  # Tampilkan traceback untuk debugging
