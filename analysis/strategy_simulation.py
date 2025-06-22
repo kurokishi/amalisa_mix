@@ -69,14 +69,18 @@ def show_strategy_simulation(portfolio_df):
     if 'Close' not in hist.columns:
         st.error("⛔ Kolom 'Close' tidak tersedia di data.")
         return
-   
-    close_all_null = bool(hist['Close'].isnull().all().item())
-    if close_all_null:
+    if hist['Close'].isnull().all().item():
         st.error("⛔ Seluruh nilai 'Close' kosong.")
         return
 
     prices = hist['Close'].dropna()
-    st.info(f"📉 Harga awal: {prices.iloc[0]:.2f}, harga akhir: {prices.iloc[-1]:.2f}")
+
+    try:
+        harga_awal_float = float(prices.iloc[0])
+        harga_akhir_float = float(prices.iloc[-1])
+        st.info(f"📉 Harga awal: {harga_awal_float:.2f}, harga akhir: {harga_akhir_float:.2f}")
+    except Exception as e:
+        st.warning(f"⚠️ Gagal menampilkan harga awal/akhir: {e}")
 
     try:
         harga_awal = prices.iloc[0]
