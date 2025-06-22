@@ -7,16 +7,16 @@ from utils.formatter import format_currency_idr
 
 
 def show_long_term_growth_simulation(portfolio_df):
-    st.header("Simulasi Pertumbuhan Harga Jangka Panjang")
+    st.header("🚀 Simulasi Pertumbuhan Harga Jangka Panjang")
 
     if portfolio_df is None or portfolio_df.empty:
-        st.warning("Silakan upload portofolio terlebih dahulu")
+        st.warning("Silakan upload portofolio terlebih dahulu.")
         return
 
-    duration = st.slider("Durasi Proyeksi (hari)", 30, 365, 180)
-    results = []
+    duration = st.slider("⏳ Durasi Proyeksi (hari)", 30, 365, 180)
+    st.info("Model menggunakan prediksi harga dari Advanced LSTM. Hasil bersifat estimatif.")
 
-    st.info("Model menggunakan prediksi harga dari Advanced LSTM.")
+    results = []
     progress = st.progress(0, text="Memulai prediksi...")
 
     for idx, row in portfolio_df.iterrows():
@@ -55,22 +55,23 @@ def show_long_term_growth_simulation(portfolio_df):
         return
 
     df = pd.DataFrame(results)
-    st.subheader("Ringkasan Prediksi Portofolio")
 
-    col1, col2 = st.columns(2)
-    col1.metric("Total Nilai Saat Ini", format_currency_idr(df['Nilai Sekarang'].sum()))
-    col2.metric("Prediksi Nilai Masa Depan", format_currency_idr(df['Nilai Prediksi'].sum()),
-                delta=f"{((df['Nilai Prediksi'].sum() - df['Nilai Sekarang'].sum()) / df['Nilai Sekarang'].sum()) * 100:.2f}%")
+    with st.container():
+        st.subheader("📊 Ringkasan Proyeksi Portofolio")
+        col1, col2 = st.columns(2)
+        col1.metric("💰 Nilai Saat Ini", format_currency_idr(df['Nilai Sekarang'].sum()))
+        col2.metric("📈 Prediksi Nilai", format_currency_idr(df['Nilai Prediksi'].sum()),
+                    delta=f"{((df['Nilai Prediksi'].sum() - df['Nilai Sekarang'].sum()) / df['Nilai Sekarang'].sum()) * 100:.2f}%")
 
-    st.subheader("Grafik Proyeksi Tiap Saham")
-    fig = px.bar(df, x='Saham', y='Return (%)', color='Return (%)', text_auto='.2f',
-                 color_continuous_scale='RdYlGn')
-    st.plotly_chart(fig, use_container_width=True)
+    with st.expander("📈 Grafik Proyeksi Return Saham"):
+        fig = px.bar(df, x='Saham', y='Return (%)', color='Return (%)', text_auto='.2f',
+                     color_continuous_scale='RdYlGn', title="Return (%) per Saham")
+        st.plotly_chart(fig, use_container_width=True)
 
-    st.subheader("Tabel Detail Proyeksi")
-    df_display = df.copy()
-    df_display['Harga Sekarang'] = df_display['Harga Sekarang'].apply(format_currency_idr)
-    df_display['Harga Prediksi'] = df_display['Harga Prediksi'].apply(format_currency_idr)
-    df_display['Nilai Sekarang'] = df_display['Nilai Sekarang'].apply(format_currency_idr)
-    df_display['Nilai Prediksi'] = df_display['Nilai Prediksi'].apply(format_currency_idr)
-    st.dataframe(df_display.sort_values(by='Return (%)', ascending=False).reset_index(drop=True))
+    with st.expander("📋 Tabel Detail Proyeksi"):
+        df_display = df.copy()
+        df_display['Harga Sekarang'] = df_display['Harga Sekarang'].apply(format_currency_idr)
+        df_display['Harga Prediksi'] = df_display['Harga Prediksi'].apply(format_currency_idr)
+        df_display['Nilai Sekarang'] = df_display['Nilai Sekarang'].apply(format_currency_idr)
+        df_display['Nilai Prediksi'] = df_display['Nilai Prediksi'].apply(format_currency_idr)
+        st.dataframe(df_display.sort_values(by='Return (%)', ascending=False).reset_index(drop=True), use_container_width=True)
