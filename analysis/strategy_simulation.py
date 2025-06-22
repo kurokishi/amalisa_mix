@@ -84,8 +84,8 @@ def show_strategy_simulation(portfolio_df):
     })
 
     st.subheader("📊 Hasil Simulasi Strategi")
-    fig = px.bar(result, x="Strategi", y="Nilai Akhir", text_auto='.2s', color="Return (%)",
-                 color_continuous_scale="Tealrose", title="Perbandingan Nilai Akhir per Strategi")
+    fig = px.bar(result, x="Strategi", y="Nilai Akhir", text_auto='.2s', color="Strategi",
+                 color_discrete_sequence=px.colors.qualitative.Set2, title="Perbandingan Nilai Akhir per Strategi")
     st.plotly_chart(fig, use_container_width=True)
 
     result_display = result.copy()
