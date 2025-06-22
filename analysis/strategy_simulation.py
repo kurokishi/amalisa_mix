@@ -92,7 +92,8 @@ def show_strategy_simulation(portfolio_df):
     result_display = result.copy()
     result_display['Nilai Akhir'] = result_display['Nilai Akhir'].apply(format_currency_idr)
     result_display['Total Saham'] = pd.to_numeric(result_display['Total Saham'], errors='coerce').round(4)
-    result_display['Return (%)'] = result_display['Return (%)'].map(lambda x: f"{x:.2f}%")
+    result_display['Return (%)'] = pd.to_numeric(result_display['Return (%)'], errors='coerce')
+    result_display['Return (%)'] = result_display['Return (%)'].apply(lambda x: f"{x:.2f}%" if pd.notnull(x) else "-")
     st.dataframe(result_display, use_container_width=True)
 
     st.caption("Simulasi ini menggunakan data historis dan dividen aktual dari yfinance.")
