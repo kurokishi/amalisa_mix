@@ -51,7 +51,7 @@ def simulate_reinvest_dividen(ticker, base_shares, price_history):
     return total_shares
 
 
-def strategy_simulation(portfolio_df):
+def show_strategy_simulation(portfolio_df):
     st.header("🧪 Simulasi Strategi Terintegrasi per Saham")
 
     if portfolio_df is None or portfolio_df.empty:
