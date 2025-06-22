@@ -1,11 +1,11 @@
-import numpy as np
+limport numpy as np
 import pandas as pd
 import streamlit as st
 from datetime import timedelta
 from sklearn.preprocessing import MinMaxScaler
 from sklearn.metrics import mean_squared_error, mean_absolute_error
 from tensorflow.keras.models import Sequential
-from tensorflow.keras.layers import LSTM, Dense, Dropout
+from tensorflow.keras.layers import LSTM, Dense, Dropout, Input
 
 
 def train_advanced_lstm(df, prediction_days=30, epochs=20, dropout_rate=0.2):
@@ -36,9 +36,13 @@ def train_advanced_lstm(df, prediction_days=30, epochs=20, dropout_rate=0.2):
     X_train, X_test = X[:split], X[split:]
     y_train, y_test = y[:split], y[split:]
 
+    if len(X_train) == 0 or len(X_test) == 0:
+        return None, None, None
+
     # Build model
     model = Sequential()
-    model.add(LSTM(units=100, return_sequences=True, input_shape=(X.shape[1], 1)))
+    model.add(Input(shape=(X.shape[1], 1)))
+    model.add(LSTM(units=100, return_sequences=True))
     model.add(Dropout(dropout_rate))
     model.add(LSTM(units=100))
     model.add(Dropout(dropout_rate))
