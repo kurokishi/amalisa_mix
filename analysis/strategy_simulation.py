@@ -69,7 +69,9 @@ def show_strategy_simulation(portfolio_df):
     if 'Close' not in hist.columns:
         st.error("⛔ Kolom 'Close' tidak tersedia di data.")
         return
-    if hist['Close'].isnull().all():
+   
+    is_close_empty = hist['Close'].isnull().all()
+    if bool(is_close_empty):
         st.error("⛔ Seluruh nilai 'Close' kosong.")
         return
 
