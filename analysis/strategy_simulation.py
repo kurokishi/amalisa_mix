@@ -23,16 +23,23 @@ def simulate_dca(prices, dca_nominal):
 
 def simulate_reinvest_dividen(ticker, base_shares, price_history):
     stock = yf.Ticker(ticker)
-    start = price_history.index[0].tz_localize(None)
-    end = price_history.index[-1].tz_localize(None)
-    divs = stock.dividends.tz_localize(None)[start:end]
+    try:
+        start = price_history.index[0].tz_localize(None)
+        end = price_history.index[-1].tz_localize(None)
+        divs = stock.dividends.tz_localize(None)[start:end]
+    except:
+        return base_shares
+
     total_shares = base_shares
     for date, div_per_share in divs.items():
         if date in price_history.index:
-            div_total = div_per_share * total_shares
-            close_price = price_history.loc[date]['Close']
-            tambahan_saham = div_total / close_price if close_price > 0 else 0
-            total_shares += tambahan_saham
+            try:
+                div_total = div_per_share * total_shares
+                close_price = price_history.loc[date]['Close']
+                tambahan_saham = div_total / close_price if close_price > 0 else 0
+                total_shares += tambahan_saham
+            except:
+                continue
     return total_shares
 
 
@@ -50,36 +57,38 @@ def show_strategy_simulation(portfolio_df):
     durasi_tahun = st.slider("⏳ Durasi Simulasi (tahun)", 1, 10, 5)
     dca_nominal = st.number_input("💸 Nominal DCA / Bulan (Rp)", min_value=10000, step=10000, value=500000)
 
-    # Ambil data harga bulanan
     start_date = (datetime.now() - timedelta(days=durasi_tahun*365)).strftime("%Y-%m-%d")
     hist = yf.download(ticker, start=start_date, interval="1mo", progress=False)
-    if hist.empty or len(hist) < 6:
-        st.error("Data historis tidak tersedia untuk simulasi.")
+
+    if hist.empty or len(hist) < 6 or hist['Close'].isna().all():
+        st.error("Harga historis tidak tersedia atau kosong.")
         return
 
     prices = hist['Close'].dropna()
+    st.info(f"📉 Harga awal: {prices.iloc[0]:.2f}, harga akhir: {prices.iloc[-1]:.2f}")
 
-    # Simulasi baseline: beli sekali di awal (tanpa strategi)
-    harga_awal = prices.iloc[0]
-    saham_awal = dca_nominal / harga_awal
-    nilai_akhir_baseline = saham_awal * prices.iloc[-1]
+    try:
+        harga_awal = prices.iloc[0]
+        saham_awal = dca_nominal / harga_awal
+        nilai_akhir_baseline = saham_awal * prices.iloc[-1]
+    except:
+        saham_awal = 0
+        nilai_akhir_baseline = 0
 
-    # DCA saja
     saham_dca, total_invested_dca = simulate_dca(prices, dca_nominal)
-    nilai_dca = saham_dca * prices.iloc[-1]
+    nilai_dca = saham_dca * prices.iloc[-1] if saham_dca > 0 else 0
 
-    # DCA + DRIP
     saham_dca_drip = simulate_reinvest_dividen(ticker, saham_dca, hist)
-    nilai_dca_drip = saham_dca_drip * prices.iloc[-1]
+    nilai_dca_drip = saham_dca_drip * prices.iloc[-1] if saham_dca_drip > 0 else 0
 
     result = pd.DataFrame({
         "Strategi": ["Tanpa Strategi", "📆 DCA", "📆 DCA + 🔁 DRIP"],
         "Total Saham": [saham_awal, saham_dca, saham_dca_drip],
         "Nilai Akhir": [nilai_akhir_baseline, nilai_dca, nilai_dca_drip],
         "Return (%)": [
-            (nilai_akhir_baseline - dca_nominal)/dca_nominal*100,
-            (nilai_dca - total_invested_dca)/total_invested_dca*100,
-            (nilai_dca_drip - total_invested_dca)/total_invested_dca*100
+            (nilai_akhir_baseline - dca_nominal)/dca_nominal*100 if dca_nominal else 0,
+            (nilai_dca - total_invested_dca)/total_invested_dca*100 if total_invested_dca else 0,
+            (nilai_dca_drip - total_invested_dca)/total_invested_dca*100 if total_invested_dca else 0
         ]
     })
 
