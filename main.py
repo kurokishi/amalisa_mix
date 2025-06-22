@@ -17,6 +17,7 @@ from analysis.long_term_simulation import show_long_term_growth_simulation
 from analysis.rebalancing import show_rebalancing_recommendation
 from analysis.reinvest_dividen import show_reinvest_dividen
 from analysis.strategy_recommender import show_strategy_recommendation
+from analysis.strategy_simulation import show_strategy_simulation
 from models.predictor import show_price_prediction
 
 # Konfigurasi halaman
@@ -35,6 +36,7 @@ with st.sidebar:
         "📆 DCA Simulation": show_dca_simulation,
         "🔁 Reinvest Dividen": show_reinvest_dividen,
         "🧠 Strategy Recommendation": show_strategy_recommendation,
+        "🧪 Strategy Simulation": show_strategy_simulation,
         "🚀 Long-Term AI Simulation": show_long_term_growth_simulation,
         "⚖️ Rebalancing": show_rebalancing_recommendation,
         "📚 Fundamental Analysis": show_fundamental_analysis,
