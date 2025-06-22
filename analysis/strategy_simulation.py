@@ -23,7 +23,9 @@ def simulate_dca(prices, dca_nominal):
 
 def simulate_reinvest_dividen(ticker, base_shares, price_history):
     stock = yf.Ticker(ticker)
-    divs = stock.dividends[price_history.index[0]:price_history.index[-1]]
+    start = price_history.index[0].tz_localize(None)
+    end = price_history.index[-1].tz_localize(None)
+    divs = stock.dividends.tz_localize(None)[start:end]
     total_shares = base_shares
     for date, div_per_share in divs.items():
         if date in price_history.index:
