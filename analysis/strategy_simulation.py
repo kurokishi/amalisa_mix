@@ -6,6 +6,7 @@ from datetime import datetime, timedelta
 import time
 import traceback
 import warnings
+import numpy as np
 from utils.formatter import format_currency_idr
 
 # Suppress FutureWarnings dari yfinance
@@ -23,7 +24,7 @@ def safe_yfinance_download(ticker, start_date, max_retries=3):
                 start=start_date, 
                 interval="1mo", 
                 progress=False,
-                auto_adjust=True  # Tambahkan parameter ini
+                auto_adjust=True
             )
             if not data.empty:
                 return data
@@ -36,15 +37,16 @@ def simulate_dca(prices, dca_nominal):
     try:
         total_shares = 0
         total_invested = 0
-        valid_prices = [p for p in prices if pd.notnull(p) and p > 0]
-        
-        if not valid_prices:
-            return 0, 0
-            
-        for price in valid_prices:
-            shares = dca_nominal / price
-            total_shares += shares
-            total_invested += dca_nominal
+        # Hanya proses nilai yang bisa dikonversi ke float
+        for price in prices:
+            try:
+                price_val = float(price)
+                if price_val > 0 and not np.isnan(price_val):
+                    shares = dca_nominal / price_val
+                    total_shares += shares
+                    total_invested += dca_nominal
+            except (ValueError, TypeError):
+                continue
         return total_shares, total_invested
     except Exception:
         return 0, 0
@@ -87,9 +89,12 @@ def safe_dividend_calculation(ticker, base_shares, price_history):
                 
             if date in price_history.index:
                 try:
-                    # PERBAIKAN: Pastikan mengambil nilai scalar
-                    close_price = price_history.loc[date, 'Close'].item()
-                    if pd.isna(close_price) or close_price <= 0:
+                    # Pastikan mengambil nilai scalar
+                    close_price = price_history.loc[date, 'Close']
+                    # Konversi ke float jika perlu
+                    close_price = float(close_price) if not isinstance(close_price, (int, float)) else close_price
+                    
+                    if np.isnan(close_price) or close_price <= 0:
                         continue
                         
                     div_total = div_per_share * total_shares
@@ -159,7 +164,7 @@ def show_strategy_simulation(portfolio_df):
         if len(hist) < 6:
             st.warning("⚠️ Data historis terbatas, hasil mungkin kurang akurat")
 
-        # Tangani harga - PERBAIKAN UTAMA DI SINI
+        # Tangani harga
         try:
             # Pastikan kita mendapatkan Series numerik
             prices = hist['Close'].dropna()
@@ -168,9 +173,12 @@ def show_strategy_simulation(portfolio_df):
                 st.error("⛔ Tidak ada data harga yang valid")
                 return
                 
-            # Konversi ke numpy array untuk memastikan nilai scalar
-            harga_awal = prices.iloc[0] if isinstance(prices.iloc[0], (int, float)) else prices.values[0]
-            harga_akhir = prices.iloc[-1] if isinstance(prices.iloc[-1], (int, float)) else prices.values[-1]
+            # Konversi seluruh series ke float
+            prices = prices.astype(float)
+            
+            # Ambil nilai pertama dan terakhir
+            harga_awal = prices.iloc[0]
+            harga_akhir = prices.iloc[-1]
             
             st.info(f"📉 Harga awal: {format_currency_idr(harga_awal)}, harga akhir: {format_currency_idr(harga_akhir)}")
         except Exception as e:
@@ -182,15 +190,12 @@ def show_strategy_simulation(portfolio_df):
         saham_awal = saham_awal_input
 
         # 1. Strategi: Tanpa Strategi
-        # PERBAIKAN: Pastikan harga_awal dan harga_akhir adalah float
+        # Pastikan harga_awal dan harga_akhir adalah float
         try:
             harga_awal = float(harga_awal)
-        except:
-            harga_awal = 0
-            
-        try:
             harga_akhir = float(harga_akhir)
         except:
+            harga_awal = 0
             harga_akhir = 0
             
         nilai_akhir_baseline = saham_awal * harga_akhir
@@ -203,9 +208,8 @@ def show_strategy_simulation(portfolio_df):
 
         # 2. Strategi: DCA
         with st.spinner("🔄 Menghitung strategi DCA..."):
-            # Pastikan prices adalah list numerik
-            prices_list = [float(p) for p in prices if pd.notnull(p) and p > 0]
-            saham_dari_dca, total_invested_dca = simulate_dca(prices_list, dca_nominal)
+            # PERBAIKAN UTAMA: Gunakan prices yang sudah dikonversi ke float
+            saham_dari_dca, total_invested_dca = simulate_dca(prices.tolist(), dca_nominal)
             
             total_saham_dca = saham_awal + saham_dari_dca
             nilai_dca = total_saham_dca * harga_akhir
