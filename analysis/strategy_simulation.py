@@ -85,11 +85,14 @@ def show_strategy_simulation(portfolio_df):
 
     st.subheader("📊 Hasil Simulasi Strategi")
     fig = px.bar(result, x="Strategi", y="Nilai Akhir", text_auto='.2s', color="Strategi",
-                 color_discrete_sequence=px.colors.qualitative.Set2, title="Perbandingan Nilai Akhir per Strategi")
+                 color_discrete_sequence=px.colors.qualitative.Set2,
+                 title="Perbandingan Nilai Akhir per Strategi", hover_data=["Return (%)"])
     st.plotly_chart(fig, use_container_width=True)
 
     result_display = result.copy()
     result_display['Nilai Akhir'] = result_display['Nilai Akhir'].apply(format_currency_idr)
+    result_display['Total Saham'] = result_display['Total Saham'].round(4)
+    result_display['Return (%)'] = result_display['Return (%)'].map(lambda x: f"{x:.2f}%")
     st.dataframe(result_display, use_container_width=True)
 
     st.caption("Simulasi ini menggunakan data historis dan dividen aktual dari yfinance.")
