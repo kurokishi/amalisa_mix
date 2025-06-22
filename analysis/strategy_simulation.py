@@ -91,7 +91,7 @@ def show_strategy_simulation(portfolio_df):
 
     result_display = result.copy()
     result_display['Nilai Akhir'] = result_display['Nilai Akhir'].apply(format_currency_idr)
-    result_display['Total Saham'] = result_display['Total Saham'].round(4)
+    result_display['Total Saham'] = pd.to_numeric(result_display['Total Saham'], errors='coerce').round(4)
     result_display['Return (%)'] = result_display['Return (%)'].map(lambda x: f"{x:.2f}%")
     st.dataframe(result_display, use_container_width=True)
 
