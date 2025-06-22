@@ -61,19 +61,16 @@ def show_strategy_simulation(portfolio_df):
     hist = yf.download(ticker, start=start_date, interval="1mo", progress=False)
 
     if hist.empty:
-       st.error("⛔ Data harga historis kosong.")
-       return
+        st.error("⛔ Data harga historis kosong.")
+        return
     if len(hist) < 6:
-       st.error("⛔ Data historis terlalu pendek untuk simulasi.")
-       return
+        st.error("⛔ Data historis terlalu pendek untuk simulasi.")
+        return
     if 'Close' not in hist.columns:
-       st.error("⛔ Kolom 'Close' tidak tersedia di data.")
-       return
+        st.error("⛔ Kolom 'Close' tidak tersedia di data.")
+        return
     if hist['Close'].isnull().all():
-       st.error("⛔ Seluruh nilai 'Close' kosong.")
-       return
-
-        st.error("Harga historis tidak tersedia atau kosong.")
+        st.error("⛔ Seluruh nilai 'Close' kosong.")
         return
 
     prices = hist['Close'].dropna()
