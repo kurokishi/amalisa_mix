@@ -60,13 +60,19 @@ def show_strategy_simulation(portfolio_df):
     start_date = (datetime.now() - timedelta(days=durasi_tahun*365)).strftime("%Y-%m-%d")
     hist = yf.download(ticker, start=start_date, interval="1mo", progress=False)
 
-    invalid = (
-        hist.empty
-        or len(hist) < 6
-        or 'Close' not in hist.columns
-        or hist['Close'].isnull().all()
-    )
-    if invalid:
+    if hist.empty:
+       st.error("⛔ Data harga historis kosong.")
+       return
+    if len(hist) < 6:
+       st.error("⛔ Data historis terlalu pendek untuk simulasi.")
+       return
+    if 'Close' not in hist.columns:
+       st.error("⛔ Kolom 'Close' tidak tersedia di data.")
+       return
+    if hist['Close'].isnull().all():
+       st.error("⛔ Seluruh nilai 'Close' kosong.")
+       return
+
         st.error("Harga historis tidak tersedia atau kosong.")
         return
 
