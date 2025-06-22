@@ -60,7 +60,8 @@ def show_strategy_simulation(portfolio_df):
     start_date = (datetime.now() - timedelta(days=durasi_tahun*365)).strftime("%Y-%m-%d")
     hist = yf.download(ticker, start=start_date, interval="1mo", progress=False)
 
-    if hist.empty or len(hist) < 6 or 'Close' not in hist.columns or hist['Close'].isna().all():
+    if (hist.empty or len(hist) < 6 or 'Close' not in hist.columns or hist['Close'].isnull().all()):  
+        # gunakan .isnull().all() dengan line break
         st.error("Harga historis tidak tersedia atau kosong.")
         return
 
