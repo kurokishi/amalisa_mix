@@ -51,10 +51,12 @@ def get_dividend_data(ticker, start_date, end_date):
     """
     try:
         # Format ticker yang benar untuk yfinance
-        if not ticker.endswith('.JK'):
-            ticker += '.JK'
+        if ticker.endswith('.JK'):
+            clean_ticker = ticker
+        else:
+            clean_ticker = ticker + '.JK'
             
-        stock = yf.Ticker(ticker)
+        stock = yf.Ticker(clean_ticker)
         div_data = stock.dividends
         
         if div_data.empty:
@@ -163,7 +165,12 @@ def show_portfolio_strategy_simulation(portfolio_df):
 
         try:
             # Format ticker yang benar untuk yfinance
-            yf_ticker = ticker + '.JK'
+            if '.' in ticker:
+                # Jika sudah ada titik, gunakan langsung
+                yf_ticker = ticker
+            else:
+                # Jika tidak ada titik, tambahkan .JK
+                yf_ticker = ticker + '.JK'
             
             # Unduh data untuk satu ticker
             hist_data = yf.download(
@@ -176,19 +183,19 @@ def show_portfolio_strategy_simulation(portfolio_df):
             )
             
             if hist_data.empty:
-                st.warning(f"Data tidak tersedia untuk {ticker} ({yf_ticker})")
+                st.warning(f"⚠️ Data tidak tersedia untuk {ticker} (mencoba {yf_ticker})")
                 progress_bar.progress((idx+1) / total_stocks)
                 continue
                 
             if 'Close' not in hist_data.columns:
-                st.warning(f"Kolom 'Close' tidak ada untuk {ticker}")
+                st.warning(f"⚠️ Kolom 'Close' tidak ada untuk {ticker} (mencoba {yf_ticker})")
                 progress_bar.progress((idx+1) / total_stocks)
                 continue
                 
             prices = hist_data['Close'].dropna()
             
             if len(prices) < 2:
-                st.warning(f"Data historis tidak cukup untuk {ticker}")
+                st.warning(f"⚠️ Data historis tidak cukup untuk {ticker} (mencoba {yf_ticker})")
                 progress_bar.progress((idx+1) / total_stocks)
                 continue
                 
@@ -214,7 +221,7 @@ def show_portfolio_strategy_simulation(portfolio_df):
             
             # 3. Strategi: DCA + DRIP
             saham_dca_drip = simulate_reinvest_dividen(
-                ticker, 
+                yf_ticker, 
                 saham_dca, 
                 prices,
                 start_date=actual_start_date,
@@ -239,14 +246,13 @@ def show_portfolio_strategy_simulation(portfolio_df):
             total_investasi_dca += total_invested_dca
 
         except Exception as e:
-            st.warning(f"Gagal memproses {ticker}: {str(e)}")
-            st.text(traceback.format_exc())
+            st.warning(f"⚠️ Gagal memproses {ticker}: {str(e)}")
         finally:
             progress_bar.progress((idx+1) / total_stocks)
 
     # Jika tidak ada data yang berhasil diunduh
     if total_nilai_awal == 0:
-        st.error("Tidak ada data yang berhasil diunduh. Simulasi tidak dapat dilakukan.")
+        st.error("❌ Tidak ada data yang berhasil diunduh. Simulasi tidak dapat dilakukan.")
         return
 
     # Fungsi perhitungan return
