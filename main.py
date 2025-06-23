@@ -18,7 +18,7 @@ from analysis.rebalancing import show_rebalancing_recommendation
 from analysis.reinvest_dividen import show_reinvest_dividen
 from analysis.strategy_recommender import show_strategy_recommendation
 from analysis.strategy_simulation import show_strategy_simulation
-from strategy_portfolio import show_portfolio_strategy_simulation
+from analysis.strategy_portfolio import show_portfolio_strategy_simulation
 from models.predictor import show_price_prediction
 
 # Konfigurasi halaman
