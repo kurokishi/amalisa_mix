@@ -5,6 +5,7 @@ import numpy as np
 from datetime import datetime, timedelta
 from utils.formatter import format_currency_idr
 from dateutil.relativedelta import relativedelta
+import traceback
 
 # Asumsi biaya dan inflasi
 ASUMSI_BIAYA_TRANSAKSI_PERSEN = 0.15  # 0.15% biaya transaksi
@@ -48,15 +49,23 @@ def get_dividend_data(ticker, start_date, end_date):
     """
     Ambil data dividen dan tanggal ex-dividend
     """
-    stock = yf.Ticker(ticker)
-    div_data = stock.dividends
-    
-    if div_data.empty:
+    try:
+        # Format ticker yang benar untuk yfinance
+        if not ticker.endswith('.JK'):
+            ticker += '.JK'
+            
+        stock = yf.Ticker(ticker)
+        div_data = stock.dividends
+        
+        if div_data.empty:
+            return pd.Series(dtype=float)
+        
+        # Filter berdasarkan rentang tanggal simulasi
+        div_data = div_data[(div_data.index >= start_date) & (div_data.index <= end_date)]
+        return div_data
+    except Exception as e:
+        st.warning(f"Gagal mengambil dividen {ticker}: {str(e)}")
         return pd.Series(dtype=float)
-    
-    # Filter berdasarkan rentang tanggal simulasi
-    div_data = div_data[(div_data.index >= start_date) & (div_data.index <= end_date)]
-    return div_data
 
 def simulate_reinvest_dividen(ticker, shares, prices, start_date, end_date):
     """
@@ -110,17 +119,19 @@ def show_portfolio_strategy_simulation(portfolio_df):
     with st.expander("⚙️ Pengaturan Lanjutan"):
         col1, col2 = st.columns(2)
         with col1:
-            biaya_transaksi = st.number_input("Biaya Transaksi (%)", 
+            global ASUMSI_BIAYA_TRANSAKSI_PERSEN
+            ASUMSI_BIAYA_TRANSAKSI_PERSEN = st.number_input("Biaya Transaksi (%)", 
                                             min_value=0.0, 
                                             max_value=1.0, 
                                             value=0.15, 
-                                            step=0.05) / 100
+                                            step=0.05)
         with col2:
-            inflasi_tahunan = st.number_input("Asumsi Inflasi Tahunan (%)", 
+            global ASUMSI_INFLASI_TAHUNAN
+            ASUMSI_INFLASI_TAHUNAN = st.number_input("Asumsi Inflasi Tahunan (%)", 
                                             min_value=0.0, 
                                             max_value=10.0, 
                                             value=3.5, 
-                                            step=0.5) / 100
+                                            step=0.5)
     
     durasi_tahun = st.slider("⏳ Durasi Simulasi (tahun)", 1, 30, 10)
     dca_per_saham = st.number_input("💸 Nominal DCA per Saham / Bulan (Rp)", 
@@ -137,50 +148,48 @@ def show_portfolio_strategy_simulation(portfolio_df):
     # Simpan hasil per saham
     results = []
     
-    # Unduh data untuk semua ticker sekaligus
-    tickers = portfolio_df['Ticker'].tolist()
-    tickers_yf = [t + '.JK' for t in tickers]  # Tambahkan .JK untuk IDX
-    
-    try:
-        # Unduh data dengan adjusted close
-        hist_data = yf.download(tickers_yf, 
-                               start=start_date, 
-                               end=end_date, 
-                               interval="1mo", 
-                               progress=False, 
-                               auto_adjust=True, 
-                               group_by='ticker')
-    except Exception as e:
-        st.error(f"Gagal mengunduh data: {e}")
-        return
-
     total_awal = 0
     total_nilai_awal = 0
     total_dca = 0
     total_dca_drip = 0
     total_investasi_dca = 0
 
+    progress_bar = st.progress(0)
+    total_stocks = len(portfolio_df)
+    
     for idx, row in portfolio_df.iterrows():
         ticker = row['Ticker']
-        yf_ticker = ticker + '.JK'
         saham_awal = float(row.get('Lots', 0)) * 100  # 1 lot = 100 lembar saham
 
         try:
-            # Ambil data untuk ticker spesifik
-            if yf_ticker not in hist_data:
-                st.warning(f"Data tidak tersedia untuk {ticker} ({yf_ticker})")
-                continue
-                
-            ticker_data = hist_data[yf_ticker]
+            # Format ticker yang benar untuk yfinance
+            yf_ticker = ticker + '.JK'
             
-            if ticker_data.empty or 'Close' not in ticker_data.columns:
-                st.warning(f"Data tidak valid untuk {ticker}")
+            # Unduh data untuk satu ticker
+            hist_data = yf.download(
+                yf_ticker, 
+                start=start_date, 
+                end=end_date, 
+                interval="1mo", 
+                progress=False, 
+                auto_adjust=True
+            )
+            
+            if hist_data.empty:
+                st.warning(f"Data tidak tersedia untuk {ticker} ({yf_ticker})")
+                progress_bar.progress((idx+1) / total_stocks)
                 continue
                 
-            prices = ticker_data['Close'].dropna()
+            if 'Close' not in hist_data.columns:
+                st.warning(f"Kolom 'Close' tidak ada untuk {ticker}")
+                progress_bar.progress((idx+1) / total_stocks)
+                continue
+                
+            prices = hist_data['Close'].dropna()
             
             if len(prices) < 2:
                 st.warning(f"Data historis tidak cukup untuk {ticker}")
+                progress_bar.progress((idx+1) / total_stocks)
                 continue
                 
             # Tanggal pertama dan terakhir
@@ -205,7 +214,7 @@ def show_portfolio_strategy_simulation(portfolio_df):
             
             # 3. Strategi: DCA + DRIP
             saham_dca_drip = simulate_reinvest_dividen(
-                yf_ticker, 
+                ticker, 
                 saham_dca, 
                 prices,
                 start_date=actual_start_date,
@@ -231,7 +240,14 @@ def show_portfolio_strategy_simulation(portfolio_df):
 
         except Exception as e:
             st.warning(f"Gagal memproses {ticker}: {str(e)}")
-            continue
+            st.text(traceback.format_exc())
+        finally:
+            progress_bar.progress((idx+1) / total_stocks)
+
+    # Jika tidak ada data yang berhasil diunduh
+    if total_nilai_awal == 0:
+        st.error("Tidak ada data yang berhasil diunduh. Simulasi tidak dapat dilakukan.")
+        return
 
     # Fungsi perhitungan return
     def calculate_return(nilai_akhir, nilai_awal):
@@ -305,12 +321,3 @@ def show_portfolio_strategy_simulation(portfolio_df):
     - Inflasi diasumsikan 3.5% per tahun
     - Simulasi menggunakan harga yang sudah disesuaikan (adjusted close)
     """)
-
-# Untuk menjalankan di modul terpisah
-if __name__ == "__main__":
-    # Contoh portfolio untuk testing
-    sample_portfolio = pd.DataFrame({
-        'Ticker': ['BBCA', 'BBRI', 'TLKM'],
-        'Lots': [10, 5, 8]
-    })
-    show_portfolio_strategy_simulation(sample_portfolio)
