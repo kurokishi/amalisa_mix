@@ -44,8 +44,8 @@ def show_auto_reallocation_simulation(portfolio_df):
                     start=start_date, 
                     end=end_date,
                     interval="1mo",
-                    auto_adjust=True,  # Tambahkan parameter ini
-                    actions=False,     # Nonaktifkan dividen/split untuk percepat
+                    auto_adjust=True,
+                    actions=False,
                     progress=False
                 )
                 if not hist.empty and 'Close' in hist.columns:
@@ -64,7 +64,6 @@ def show_auto_reallocation_simulation(portfolio_df):
                 harga_jual = prices.iloc[bulan_jual - 1]
                 saham_awal = float(saham_dijual_row.get('Lots', 0)) * 100
                 hasil_penjualan = saham_awal * harga_jual
-                st.success(f"Perhitungan penjualan {saham_dijual}: {saham_awal} saham @ {harga_jual:.2f}")
             else:
                 st.warning(f"Data harga tidak cukup untuk {saham_dijual} pada bulan {bulan_jual}")
         else:
@@ -73,10 +72,8 @@ def show_auto_reallocation_simulation(portfolio_df):
         st.error(f"Error menghitung penjualan saham: {str(e)}")
         hasil_penjualan = 0.0
 
-    # Konversi hasil_penjualan ke float jika perlu
-    if isinstance(hasil_penjualan, pd.Series):
-        hasil_penjualan = hasil_penjualan.iloc[0] if not hasil_penjualan.empty else 0.0
-    hasil_penjualan = float(hasil_penjualan)
+    # Konversi hasil_penjualan ke float
+    hasil_penjualan = float(hasil_penjualan) if not isinstance(hasil_penjualan, pd.Series) else hasil_penjualan.item()
 
     # 2. Hitung nilai akhir portofolio
     for _, row in portfolio_df.iterrows():
@@ -131,6 +128,9 @@ def show_auto_reallocation_simulation(portfolio_df):
     st.subheader("📊 Ringkasan Simulasi")
     st.markdown(f"💰 **Dana hasil penjualan**: {format_currency_idr(hasil_penjualan)}")
 
+    # PERBAIKAN UTAMA: Pastikan nilai_akhir_normal adalah float, bukan Series
+    nilai_akhir_normal = float(nilai_akhir_normal) if not isinstance(nilai_akhir_normal, pd.Series) else nilai_akhir_normal.item()
+    
     # Hitung return
     hasil = pd.DataFrame({
         "Strategi": ["📈 Tanpa Rotasi", "🔄 Dengan Realokasi"],
@@ -139,7 +139,10 @@ def show_auto_reallocation_simulation(portfolio_df):
     
     # Tambahan metrik perbandingan
     hasil['Selisih'] = hasil['Nilai Akhir'] - nilai_akhir_normal
-    hasil['Peningkatan (%)'] = (hasil['Nilai Akhir'] / max(1, nilai_akhir_normal) - 1) * 100
+    
+    # PERBAIKAN: Gunakan nilai referensi yang sudah di-convert ke float
+    nilai_ref = max(1, nilai_akhir_normal)
+    hasil['Peningkatan (%)'] = (hasil['Nilai Akhir'] / nilai_ref - 1) * 100
 
     # Format tampilan
     hasil_display = hasil.copy()
