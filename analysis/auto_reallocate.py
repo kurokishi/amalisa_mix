@@ -15,7 +15,7 @@ def show_auto_reallocation_simulation(portfolio_df):
     # Identifikasi kolom yang tersedia
     available_columns = portfolio_df.columns.tolist()
     
-    # Cari kolom untuk jumlah saham (mendukung berbagai nama kolom)
+    # Cari kolom untuk jumlah saham
     quantity_col = None
     possible_quantity_cols = ['Lots', 'Jumlah', 'Quantity', 'Shares', 'Saham']
     for col in possible_quantity_cols:
@@ -28,13 +28,13 @@ def show_auto_reallocation_simulation(portfolio_df):
         st.write("Kolom yang tersedia:", ", ".join(available_columns))
         return
         
-    # Validasi kolom ticker dan nama saham
+    # Validasi kolom ticker
     if 'Ticker' not in available_columns:
         st.error("Kolom 'Ticker' tidak ditemukan dalam portofolio.")
         return
         
+    # Jika tidak ada kolom Stock, gunakan Ticker sebagai nama saham
     if 'Stock' not in available_columns:
-        # Jika tidak ada kolom Stock, gunakan Ticker sebagai nama saham
         portfolio_df['Stock'] = portfolio_df['Ticker']
     
     durasi_tahun = st.slider("⏳ Durasi Simulasi (tahun)", 1, 10, 5)
@@ -80,9 +80,9 @@ def show_auto_reallocation_simulation(portfolio_df):
         if ticker_dijual in data_harga:
             prices = data_harga[ticker_dijual]
             if len(prices) >= bulan_jual:
-                harga_jual = prices.iloc[bulan_jual - 1]
+                harga_jual = float(prices.iloc[bulan_jual - 1])  # Konversi ke float
                 
-                # Konversi jumlah saham (cek apakah dalam lot atau saham)
+                # Konversi jumlah saham
                 quantity = float(saham_dijual_row[quantity_col])
                 saham_awal = quantity * (100 if quantity_col == 'Lots' else 1)
                 
@@ -100,7 +100,7 @@ def show_auto_reallocation_simulation(portfolio_df):
     for _, row in portfolio_df.iterrows():
         ticker = row['Ticker']
         
-        # Konversi jumlah saham (cek apakah dalam lot atau saham)
+        # Konversi jumlah saham
         quantity = float(row[quantity_col])
         saham_awal = quantity * (100 if quantity_col == 'Lots' else 1)
         
@@ -108,7 +108,10 @@ def show_auto_reallocation_simulation(portfolio_df):
             continue
             
         prices = data_harga[ticker]
-        harga_akhir = prices.iloc[-1] if len(prices) > 0 else 0
+        if len(prices) > 0:
+            harga_akhir = float(prices.iloc[-1])  # Konversi ke float
+        else:
+            harga_akhir = 0.0
 
         # A. Nilai akhir tanpa rotasi (semua saham dipertahankan)
         nilai_saham = saham_awal * harga_akhir
@@ -125,11 +128,11 @@ def show_auto_reallocation_simulation(portfolio_df):
             
             # Hitung jumlah saham tambahan yang bisa dibeli
             if len(prices) >= bulan_jual:
-                harga_beli = prices.iloc[bulan_jual - 1]
+                harga_beli = float(prices.iloc[bulan_jual - 1])
                 saham_tambahan = tambahan_dana / harga_beli if harga_beli > 0 else 0
             else:
                 saham_tambahan = 0
-                harga_beli = 0
+                harga_beli = 0.0
                 
             total_saham = saham_awal + saham_tambahan
             nilai_akhir = total_saham * harga_akhir
@@ -144,6 +147,10 @@ def show_auto_reallocation_simulation(portfolio_df):
         except Exception as e:
             st.warning(f"Gagal memproses realokasi {ticker}: {str(e)}")
 
+    # Konversi hasil akhir ke float
+    nilai_akhir_normal = float(nilai_akhir_normal)
+    nilai_akhir_realokasi = float(nilai_akhir_realokasi)
+
     # 3. Tampilkan hasil
     st.subheader("📊 Ringkasan Simulasi")
     st.markdown(f"💰 **Dana hasil penjualan**: {format_currency_idr(hasil_penjualan)}")
@@ -156,7 +163,7 @@ def show_auto_reallocation_simulation(portfolio_df):
     
     # Hitung selisih dan persentase
     hasil_df['Selisih'] = hasil_df['Nilai Akhir'] - nilai_akhir_normal
-    hasil_df['Peningkatan (%)'] = (hasil_df['Selisih'] / max(1, nilai_akhir_normal)) * 100
+    hasil_df['Peningkatan (%)'] = (hasil_df['Selisih'] / max(1.0, nilai_akhir_normal)) * 100
 
     # Format tampilan
     hasil_display = hasil_df.copy()
