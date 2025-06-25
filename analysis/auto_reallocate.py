@@ -12,13 +12,31 @@ def show_auto_reallocation_simulation(portfolio_df):
         st.warning("Silakan upload portofolio terlebih dahulu.")
         return
 
-    # Validasi kolom
-    required_columns = ['Stock', 'Ticker', 'Lots']
-    missing_cols = [col for col in required_columns if col not in portfolio_df.columns]
-    if missing_cols:
-        st.error(f"Format portofolio tidak valid. Kolom yang dibutuhkan: {', '.join(missing_cols)}")
+    # Identifikasi kolom yang tersedia
+    available_columns = portfolio_df.columns.tolist()
+    
+    # Cari kolom untuk jumlah saham (mendukung berbagai nama kolom)
+    quantity_col = None
+    possible_quantity_cols = ['Lots', 'Jumlah', 'Quantity', 'Shares', 'Saham']
+    for col in possible_quantity_cols:
+        if col in available_columns:
+            quantity_col = col
+            break
+    
+    if not quantity_col:
+        st.error("Format portofolio tidak valid. Tidak ditemukan kolom untuk jumlah saham (cari: Lots, Jumlah, Quantity, Shares, Saham).")
+        st.write("Kolom yang tersedia:", ", ".join(available_columns))
         return
         
+    # Validasi kolom ticker dan nama saham
+    if 'Ticker' not in available_columns:
+        st.error("Kolom 'Ticker' tidak ditemukan dalam portofolio.")
+        return
+        
+    if 'Stock' not in available_columns:
+        # Jika tidak ada kolom Stock, gunakan Ticker sebagai nama saham
+        portfolio_df['Stock'] = portfolio_df['Ticker']
+    
     durasi_tahun = st.slider("⏳ Durasi Simulasi (tahun)", 1, 10, 5)
     saham_dijual = st.selectbox("📤 Pilih Saham untuk Dijual", portfolio_df['Stock'])
     bulan_jual = st.slider("📅 Bulan Ke-berapa Dilakukan Penjualan Saham?", 1, durasi_tahun * 12, 6)
@@ -49,6 +67,8 @@ def show_auto_reallocation_simulation(portfolio_df):
                 )
                 if not hist.empty and 'Close' in hist.columns:
                     data_harga[ticker] = hist['Close'].dropna()
+                else:
+                    st.warning(f"Data harga tidak tersedia untuk {ticker}")
             except Exception as e:
                 st.warning(f"Gagal mengambil data {ticker}: {str(e)}")
 
@@ -61,9 +81,13 @@ def show_auto_reallocation_simulation(portfolio_df):
             prices = data_harga[ticker_dijual]
             if len(prices) >= bulan_jual:
                 harga_jual = prices.iloc[bulan_jual - 1]
-                saham_awal = float(saham_dijual_row.get('Lots', 0)) * 100
+                
+                # Konversi jumlah saham (cek apakah dalam lot atau saham)
+                quantity = float(saham_dijual_row[quantity_col])
+                saham_awal = quantity * (100 if quantity_col == 'Lots' else 1)
+                
                 hasil_penjualan = saham_awal * harga_jual
-                st.success(f"Penjualan {saham_dijual}: {saham_awal} saham @ {harga_jual:.2f}")
+                st.success(f"Penjualan {saham_dijual}: {saham_awal:.0f} saham @ {harga_jual:.2f}")
             else:
                 st.warning(f"Data harga tidak cukup untuk {saham_dijual} pada bulan {bulan_jual}")
         else:
@@ -72,13 +96,13 @@ def show_auto_reallocation_simulation(portfolio_df):
         st.error(f"Error menghitung penjualan saham: {str(e)}")
         hasil_penjualan = 0.0
 
-    # Konversi hasil_penjualan ke float
-    hasil_penjualan = float(hasil_penjualan)
-
     # 2. Hitung nilai akhir portofolio
     for _, row in portfolio_df.iterrows():
         ticker = row['Ticker']
-        saham_awal = float(row.get('Lots', 0)) * 100
+        
+        # Konversi jumlah saham (cek apakah dalam lot atau saham)
+        quantity = float(row[quantity_col])
+        saham_awal = quantity * (100 if quantity_col == 'Lots' else 1)
         
         if ticker not in data_harga or data_harga[ticker].empty:
             continue
@@ -95,43 +119,47 @@ def show_auto_reallocation_simulation(portfolio_df):
             continue
 
         # C. Hitung realokasi untuk saham lainnya
-        # Sederhanakan: alokasikan hasil penjualan secara merata
-        tambahan_dana = hasil_penjualan / (len(portfolio_df) - 1)
-        
-        # Hitung jumlah saham tambahan yang bisa dibeli
-        if len(prices) >= bulan_jual:
-            harga_beli = prices.iloc[bulan_jual - 1]
-            saham_tambahan = tambahan_dana / harga_beli
-        else:
-            saham_tambahan = 0
+        try:
+            # Sederhanakan: alokasikan hasil penjualan secara merata
+            tambahan_dana = hasil_penjualan / (len(portfolio_df) - 1)
             
-        total_saham = saham_awal + saham_tambahan
-        nilai_akhir = total_saham * harga_akhir
-        nilai_akhir_realokasi += nilai_akhir
+            # Hitung jumlah saham tambahan yang bisa dibeli
+            if len(prices) >= bulan_jual:
+                harga_beli = prices.iloc[bulan_jual - 1]
+                saham_tambahan = tambahan_dana / harga_beli if harga_beli > 0 else 0
+            else:
+                saham_tambahan = 0
+                harga_beli = 0
+                
+            total_saham = saham_awal + saham_tambahan
+            nilai_akhir = total_saham * harga_akhir
+            nilai_akhir_realokasi += nilai_akhir
 
-        alokasi_ke.append({
-            "Ticker": ticker,
-            "Harga Beli": harga_beli if 'harga_beli' in locals() else 0,
-            "Saham Tambahan": saham_tambahan,
-            "Nilai Akhir": nilai_akhir
-        })
+            alokasi_ke.append({
+                "Ticker": ticker,
+                "Harga Beli": harga_beli,
+                "Saham Tambahan": saham_tambahan,
+                "Nilai Akhir": nilai_akhir
+            })
+        except Exception as e:
+            st.warning(f"Gagal memproses realokasi {ticker}: {str(e)}")
 
     # 3. Tampilkan hasil
     st.subheader("📊 Ringkasan Simulasi")
     st.markdown(f"💰 **Dana hasil penjualan**: {format_currency_idr(hasil_penjualan)}")
 
     # Hitung return sederhana
-    hasil = pd.DataFrame({
+    hasil_df = pd.DataFrame({
         "Strategi": ["📈 Tanpa Rotasi", "🔄 Dengan Realokasi"],
         "Nilai Akhir": [nilai_akhir_normal, nilai_akhir_realokasi],
     })
     
     # Hitung selisih dan persentase
-    hasil['Selisih'] = hasil['Nilai Akhir'] - nilai_akhir_normal
-    hasil['Peningkatan (%)'] = (hasil['Selisih'] / max(1, nilai_akhir_normal)) * 100
+    hasil_df['Selisih'] = hasil_df['Nilai Akhir'] - nilai_akhir_normal
+    hasil_df['Peningkatan (%)'] = (hasil_df['Selisih'] / max(1, nilai_akhir_normal)) * 100
 
-    # Format tampilan - pastikan semua nilai adalah float
-    hasil_display = hasil.copy()
+    # Format tampilan
+    hasil_display = hasil_df.copy()
     hasil_display['Nilai Akhir'] = hasil_display['Nilai Akhir'].apply(lambda x: format_currency_idr(float(x)))
     hasil_display['Selisih'] = hasil_display['Selisih'].apply(lambda x: format_currency_idr(float(x)))
     hasil_display['Peningkatan (%)'] = hasil_display['Peningkatan (%)'].apply(lambda x: f"{float(x):.2f}%")
@@ -143,6 +171,14 @@ def show_auto_reallocation_simulation(portfolio_df):
         st.markdown("---")
         st.subheader("📦 Alokasi Dana ke Saham Lain")
         df_alokasi = pd.DataFrame(alokasi_ke)
+        
+        # Format kolom nilai
         df_alokasi['Nilai Akhir'] = df_alokasi['Nilai Akhir'].apply(lambda x: format_currency_idr(float(x)))
-        df_alokasi['Harga Beli'] = df_alokasi['Harga Beli'].apply(lambda x: f"Rp{x:,.2f}" if x > 0 else "N/A")
+        df_alokasi['Harga Beli'] = df_alokasi['Harga Beli'].apply(
+            lambda x: f"Rp{x:,.2f}" if x > 0 else "N/A"
+        )
+        df_alokasi['Saham Tambahan'] = df_alokasi['Saham Tambahan'].apply(
+            lambda x: f"{x:,.2f}" if x > 0 else "0"
+        )
+        
         st.dataframe(df_alokasi.set_index('Ticker'), use_container_width=True)
